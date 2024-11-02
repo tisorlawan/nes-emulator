@@ -1,4 +1,9 @@
+Writing NES emulator because ... why not. Not everything has to have a goddamn reason.
+Written in Zig.
+
 ## References
+
+I use all of these resources below.
 
 - https://bugzmanov.github.io/nes_ebook
   https://github.com/bugzmanov/nes_ebook

@@ -142,21 +142,23 @@ const CPU = struct {
             const opcode = self.memRead(self.pc);
             self.pc += 1;
 
+            const initial_pc = self.pc;
+
+            // std.debug.print("OP = {s}\n", .{OpcodeMap.get(opcode).?.mnemonic});
             switch (opcode) {
-                0x00 => break,
+                BRK => break,
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
-                    self.pc += OpcodeMap.get(opcode).?.len - 1;
                 },
-                TAX => {
-                    self.tax();
-                    self.pc += OpcodeMap.get(opcode).?.len - 1;
+                STA_ZP, STA_ZPX, STA_ABS, STA_ABSX, STA_ABSY, STA_INDX, STA_INDY => {
+                    self.sta(OpcodeMap.get(opcode).?.mode);
                 },
-                INX => {
-                    self.inx();
-                    self.pc += OpcodeMap.get(opcode).?.len - 1;
-                },
+                TAX => self.tax(),
+                INX => self.inx(),
                 else => unreachable,
+            }
+            if (initial_pc == self.pc) {
+                self.pc += OpcodeMap.get(opcode).?.len - 1;
             }
         }
     }
@@ -167,6 +169,11 @@ const CPU = struct {
 
         self.a = value;
         self.update_zero_and_negative_flag(self.a);
+    }
+
+    fn sta(self: *CPU, mode: AddrMode) void {
+        const addr = self.get_op_addr(mode);
+        self.memWrite(addr, self.a);
     }
 
     fn tax(self: *CPU) void {
@@ -220,47 +227,39 @@ const CPU = struct {
     }
 };
 
-test "lda" {
+test "LDA" {
     var cpu = CPU{};
-    cpu.memWrite(0x10, 0x42);
+    // immediate
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x69);
+    try expect(cpu.status & 0b1000_0000 == 0);
+    try expect(cpu.status & 0b0000_0010 == 0);
 
-    cpu.loadAndRun(&[_]u8{ LDA_ZP, 0x10, 0x00 });
-    try expect(cpu.a == 0x42);
+    // zero value
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x00, BRK });
+    try expect(cpu.a == 0x00);
+    try expect(cpu.status & 0b0000_0010 == 0b10);
 
-    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, 0x00 });
+    // from memory / zero page
+    cpu.memWrite(0x10, 0x69);
+    cpu.loadAndRun(&[_]u8{ LDA_ZP, 0x10, BRK });
     try expect(cpu.a == 0x69);
 }
 
-// test "LDA, BRK" {
-//     var cpu = CPU{};
-//
-//     cpu.interpret(&[_]u8{ 0xa9, 0x05, 0x00 });
-//
-//     try expect(cpu.a == 0x05);
-//     try expect(cpu.status & 0b1000_0000 == 0);
-//     try expect(cpu.status & 0b0000_0010 == 0);
-//
-//     cpu.interpret(&[_]u8{ 0xa9, 0x00, 0x00 });
-//     try expect(cpu.a == 0x00);
-//     try expect(cpu.status & 0b1000_0000 == 0);
-//     try expect(cpu.status & 0b0000_0010 == 0b10);
-//
-//     cpu.interpret(&[_]u8{ 0xa9, 0b1000_1111, 0x00 });
-//     try expect(cpu.a == 0b1000_1111);
-//     try expect(cpu.status & 0b1000_0000 == 0b1000_0000);
-//     try expect(cpu.status & 0b0000_0010 == 0b0);
-// }
-//
-// test "TAX" {
-//     var cpu = CPU{};
-//     cpu.a = 10;
-//     cpu.interpret(&[_]u8{ 0xaa, 0x00 });
-//     try expect(cpu.x == 10);
-// }
-//
-// test "INX" {
-//     var cpu = CPU{};
-//     cpu.x = 0xff;
-//     cpu.interpret(&[_]u8{ 0xe8, 0xe8, 0x00 });
-//     try expect(cpu.x == 1);
-// }
+test "LDA TAX" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, TAX, BRK });
+    try expect(cpu.x == 0x69);
+}
+
+test "5 ops working together" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x68, TAX, INX, BRK });
+    try expect(cpu.x == 0x69);
+}
+
+test "INX overflow" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0xff, TAX, INX, INX, BRK });
+    try expect(cpu.x == 1);
+}
