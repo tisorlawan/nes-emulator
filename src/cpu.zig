@@ -2,15 +2,43 @@ const std = @import("std");
 const expect = std.testing.expect;
 
 pub const AddrMode = enum {
+    /// Immediate addressing uses the next byte as the operand value directly
+    /// Example: LDA #$05 - Load the value $05 into accumulator
     Immediate,
+
+    /// Zero Page addressing uses the next byte as an address in page zero ($0000-$00FF)
+    /// Example: LDA $05 - Load the value from memory location $0005
     ZeroPage,
+
+    /// Zero Page,X addressing adds X register to zero page address
+    /// Example: LDA $05,X - Load value from ($0005 + X)
     ZeroPageX,
+
+    /// Zero Page,Y addressing adds Y register to zero page address
+    /// Example: LDA $05,Y - Load value from ($0005 + Y)
     ZeroPageY,
+
+    /// Absolute addressing uses next two bytes as full memory address
+    /// Example: LDA $1234 - Load value from memory location $1234
     Absolute,
+
+    /// Absolute,X addressing adds X register to the absolute address
+    /// Example: LDA $1234,X - Load value from ($1234 + X)
     AbsoluteX,
+
+    /// Absolute,Y addressing adds Y register to the absolute address
+    /// Example: LDA $1234,Y - Load value from ($1234 + Y)
     AbsoluteY,
+
+    /// Indirect,X addressing: Zero page address is added to X, result used to fetch effective address
+    /// Example: LDA ($20,X) - Get address from ($20 + X) and ($20 + X + 1), load value from there
     IndirectX,
+
+    /// Indirect,Y addressing: Zero page address points to base address, Y is added to that
+    /// Example: LDA ($20),Y - Get address from $20 and $21, add Y to it, load value from there
     IndirectY,
+
+    /// Used for implied addressing where no operand is needed
     None,
 };
 
@@ -144,7 +172,7 @@ const CPU = struct {
 
             const initial_pc = self.pc;
 
-            // std.debug.print("OP = {s}\n", .{OpcodeMap.get(opcode).?.mnemonic});
+            // std.debug.print("OP = {s} = {any}\n", .{ OpcodeMap.get(opcode).?.mnemonic, OpcodeMap.get(opcode).? });
             switch (opcode) {
                 BRK => break,
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
@@ -166,6 +194,9 @@ const CPU = struct {
     fn lda(self: *CPU, mode: AddrMode) void {
         const addr = self.get_op_addr(mode);
         const value = self.memRead(addr);
+
+        // std.debug.print("X = 0x{x}\n", .{self.x});
+        // std.debug.print("Addr = 0x{x}\n", .{addr});
 
         self.a = value;
         self.update_zero_and_negative_flag(self.a);
@@ -227,39 +258,79 @@ const CPU = struct {
     }
 };
 
-test "LDA" {
+test "LDA immediate addressing" {
     var cpu = CPU{};
-    // immediate
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, BRK });
     try expect(cpu.a == 0x69);
     try expect(cpu.status & 0b1000_0000 == 0);
     try expect(cpu.status & 0b0000_0010 == 0);
+}
 
-    // zero value
-    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x00, BRK });
-    try expect(cpu.a == 0x00);
-    try expect(cpu.status & 0b0000_0010 == 0b10);
-
-    // from memory / zero page
+test "LDA zero page addressing" {
+    var cpu = CPU{};
     cpu.memWrite(0x10, 0x69);
     cpu.loadAndRun(&[_]u8{ LDA_ZP, 0x10, BRK });
     try expect(cpu.a == 0x69);
 }
 
-test "LDA TAX" {
+test "LDA zero page X addressing" {
+    var cpu = CPU{};
+    cpu.memWrite(0x42, 0x69);
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x02, TAX, LDA_ZPX, 0x40, BRK }); // 0x40 + 0x02 = 0x42
+    try expect(cpu.a == 0x69);
+}
+
+test "LDA absolute addressing" {
+    var cpu = CPU{};
+    cpu.memWrite(0x1234, 0x69);
+    cpu.loadAndRun(&[_]u8{ LDA_ABS, 0x34, 0x12, BRK });
+    try expect(cpu.a == 0x69);
+}
+
+test "LDA absolute X addressing" {
+    var cpu = CPU{};
+    cpu.memWrite(0x1234, 0x69);
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x04, TAX, LDA_ABSX, 0x30, 0x12, BRK });
+    try expect(cpu.a == 0x69);
+}
+
+test "STA zero page addressing" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x42, STA_ZP, 0x15, BRK });
+    try expect(cpu.memRead(0x15) == 0x42);
+}
+
+test "STA absolute addressing" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x42, STA_ABS, 0x34, 0x12, BRK });
+    try expect(cpu.memRead(0x1234) == 0x42);
+}
+
+test "Register instructions" {
+    // Test TAX
     var cpu = CPU{};
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, TAX, BRK });
     try expect(cpu.x == 0x69);
-}
 
-test "5 ops working together" {
-    var cpu = CPU{};
+    // Test INX
+    cpu = CPU{};
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x68, TAX, INX, BRK });
     try expect(cpu.x == 0x69);
-}
 
-test "INX overflow" {
-    var cpu = CPU{};
+    // Test INX overflow
+    cpu = CPU{};
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0xff, TAX, INX, INX, BRK });
     try expect(cpu.x == 1);
+}
+
+test "Status flags" {
+    var cpu = CPU{};
+
+    // Test zero flag
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x00, BRK });
+    try expect(cpu.status & 0b0000_0010 == 0b0000_0010);
+
+    // Test negative flag
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x80, BRK });
+    try expect(cpu.status & 0b1000_0000 == 0b1000_0000);
 }
