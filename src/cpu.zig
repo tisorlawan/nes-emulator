@@ -83,9 +83,10 @@ pub const LDA_ABSY = 0xB9;
 pub const LDA_INDX = 0xA1;
 pub const LDA_INDY = 0xB1;
 
-// OpCode constants for BRK, TAX, INX
 pub const TAX = 0xAA;
 pub const INX = 0xE8;
+
+pub const SEC = 0x38;
 
 // OpCode constants for STA
 pub const STA_ZP = 0x85;
@@ -100,37 +101,37 @@ const opCodes = [_]OpCode{
     .{ .code = BRK, .mnemonic = "BRK", .len = 1, .cycles = 7, .mode = .None, .plus_if_crossed = 0 },
     .{ .code = NOP, .mnemonic = "NOP", .len = 1, .cycles = 2, .mode = .None, .plus_if_crossed = 0 },
 
-    .{ .code = ADC_IMM, .mnemonic = "ADC", .len = 2, .cycles = 2, .mode = .Immediate, .plus_if_crossed = 0 },
-    .{ .code = ADC_ZP, .mnemonic = "ADC", .len = 2, .cycles = 3, .mode = .ZeroPage, .plus_if_crossed = 0 },
-    .{ .code = ADC_ZPX, .mnemonic = "ADC", .len = 2, .cycles = 4, .mode = .ZeroPageX, .plus_if_crossed = 0 },
     .{ .code = ADC_ABS, .mnemonic = "ADC", .len = 3, .cycles = 4, .mode = .Absolute, .plus_if_crossed = 0 },
     .{ .code = ADC_ABSX, .mnemonic = "ADC", .len = 3, .cycles = 4, .mode = .AbsoluteX, .plus_if_crossed = 1 },
     .{ .code = ADC_ABSY, .mnemonic = "ADC", .len = 3, .cycles = 4, .mode = .AbsoluteY, .plus_if_crossed = 1 },
+    .{ .code = ADC_IMM, .mnemonic = "ADC", .len = 2, .cycles = 2, .mode = .Immediate, .plus_if_crossed = 0 },
     .{ .code = ADC_INDX, .mnemonic = "ADC", .len = 2, .cycles = 6, .mode = .IndirectX, .plus_if_crossed = 0 },
     .{ .code = ADC_INDY, .mnemonic = "ADC", .len = 2, .cycles = 5, .mode = .IndirectY, .plus_if_crossed = 1 },
+    .{ .code = ADC_ZP, .mnemonic = "ADC", .len = 2, .cycles = 3, .mode = .ZeroPage, .plus_if_crossed = 0 },
+    .{ .code = ADC_ZPX, .mnemonic = "ADC", .len = 2, .cycles = 4, .mode = .ZeroPageX, .plus_if_crossed = 0 },
 
-    // Load Accumulator (LDA) instructions
-    .{ .code = LDA_IMM, .mnemonic = "LDA", .len = 2, .cycles = 2, .mode = .Immediate, .plus_if_crossed = 0 },
-    .{ .code = LDA_ZP, .mnemonic = "LDA", .len = 2, .cycles = 3, .mode = .ZeroPage, .plus_if_crossed = 0 },
-    .{ .code = LDA_ZPX, .mnemonic = "LDA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .plus_if_crossed = 0 },
+    .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .None, .plus_if_crossed = 0 },
+
     .{ .code = LDA_ABS, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .Absolute, .plus_if_crossed = 0 },
     .{ .code = LDA_ABSX, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .AbsoluteX, .plus_if_crossed = 1 },
     .{ .code = LDA_ABSY, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .AbsoluteY, .plus_if_crossed = 1 },
+    .{ .code = LDA_IMM, .mnemonic = "LDA", .len = 2, .cycles = 2, .mode = .Immediate, .plus_if_crossed = 0 },
     .{ .code = LDA_INDX, .mnemonic = "LDA", .len = 2, .cycles = 6, .mode = .IndirectX, .plus_if_crossed = 0 },
     .{ .code = LDA_INDY, .mnemonic = "LDA", .len = 2, .cycles = 5, .mode = .IndirectY, .plus_if_crossed = 1 },
+    .{ .code = LDA_ZP, .mnemonic = "LDA", .len = 2, .cycles = 3, .mode = .ZeroPage, .plus_if_crossed = 0 },
+    .{ .code = LDA_ZPX, .mnemonic = "LDA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .plus_if_crossed = 0 },
 
-    // Transfer A to X, and Increment X instructions
-    .{ .code = TAX, .mnemonic = "TAX", .len = 1, .cycles = 2, .mode = .None, .plus_if_crossed = 0 },
-    .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .None, .plus_if_crossed = 0 },
+    .{ .code = SEC, .mnemonic = "SEC", .len = 1, .cycles = 2, .mode = .None, .plus_if_crossed = 0 },
 
-    // Store Accumulator (STA) instructions
-    .{ .code = STA_ZP, .mnemonic = "STA", .len = 2, .cycles = 3, .mode = .ZeroPage, .plus_if_crossed = 0 },
-    .{ .code = STA_ZPX, .mnemonic = "STA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .plus_if_crossed = 0 },
     .{ .code = STA_ABS, .mnemonic = "STA", .len = 3, .cycles = 4, .mode = .Absolute, .plus_if_crossed = 0 },
     .{ .code = STA_ABSX, .mnemonic = "STA", .len = 3, .cycles = 5, .mode = .AbsoluteX, .plus_if_crossed = 0 },
     .{ .code = STA_ABSY, .mnemonic = "STA", .len = 3, .cycles = 5, .mode = .AbsoluteY, .plus_if_crossed = 0 },
     .{ .code = STA_INDX, .mnemonic = "STA", .len = 2, .cycles = 6, .mode = .IndirectX, .plus_if_crossed = 0 },
     .{ .code = STA_INDY, .mnemonic = "STA", .len = 2, .cycles = 6, .mode = .IndirectY, .plus_if_crossed = 0 },
+    .{ .code = STA_ZP, .mnemonic = "STA", .len = 2, .cycles = 3, .mode = .ZeroPage, .plus_if_crossed = 0 },
+    .{ .code = STA_ZPX, .mnemonic = "STA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .plus_if_crossed = 0 },
+
+    .{ .code = TAX, .mnemonic = "TAX", .len = 1, .cycles = 2, .mode = .None, .plus_if_crossed = 0 },
 };
 
 pub const OpcodeMap = struct {
@@ -202,11 +203,11 @@ const CPU = struct {
         self.status |= @intFromEnum(status);
     }
 
-    pub fn statusUnset(self: *CPU, status: Status) void {
+    pub fn statusClear(self: *CPU, status: Status) void {
         self.status &= (~@intFromEnum(status));
     }
 
-    pub fn statusIs(self: *CPU, status: Status) bool {
+    pub fn statusHas(self: *CPU, status: Status) bool {
         return (self.status & @intFromEnum(status)) != 0;
     }
 
@@ -221,17 +222,18 @@ const CPU = struct {
             switch (opcode) {
                 BRK => break,
                 NOP => {},
-                // ADC_IMM, ADC_ZP, ADC_ZPX, ADC_ABS, ADC_ABSX, ADC_ABSY, ADC_INDX, ADC_INDY => {
-                //     self.adc(OpcodeMap.get(opcode).?.mode);
-                // },
+                ADC_IMM, ADC_ZP, ADC_ZPX, ADC_ABS, ADC_ABSX, ADC_ABSY, ADC_INDX, ADC_INDY => {
+                    self.adc(OpcodeMap.get(opcode).?.mode);
+                },
+                INX => self.inx(),
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
                 },
+                SEC => self.statusSet(.Carry),
                 STA_ZP, STA_ZPX, STA_ABS, STA_ABSX, STA_ABSY, STA_INDX, STA_INDY => {
                     self.sta(OpcodeMap.get(opcode).?.mode);
                 },
                 TAX => self.tax(),
-                INX => self.inx(),
                 else => unreachable,
             }
 
@@ -241,10 +243,35 @@ const CPU = struct {
         }
     }
 
-    // fn adc(self: *CPU, mode: AddrMode) void {
-    //     const addr = self.get_op_addr(mode);
-    //     const value = self.memRead(addr);
-    // }
+    fn adc(self: *CPU, mode: AddrMode) void {
+        const addr = self.get_op_addr(mode);
+        const value = self.memRead(addr);
+        const carry_in = self.status & 0b0000_0001;
+        const result: u16 = @as(u16, value) + @as(u16, self.a) + carry_in;
+
+        // Carry
+        if (result > 0xFF) {
+            self.statusSet(.Carry);
+        } else {
+            self.statusClear(.Carry);
+        }
+
+        // Overflow
+        // - both operands are positive but the result is negative, OR
+        // - both operands are negative but the result is positive
+        const a_sign = (self.a & 0x80) != 0;
+        const m_sign = (value & 0x80) != 0;
+        const r_sign = (result & 0x80) != 0;
+
+        if ((a_sign == m_sign) and (a_sign != r_sign)) {
+            self.statusSet(.Overflow);
+        } else {
+            self.statusClear(.Overflow);
+        }
+
+        self.a = @truncate(result);
+        self.update_zero_and_negative_flag(self.a);
+    }
 
     fn lda(self: *CPU, mode: AddrMode) void {
         const addr = self.get_op_addr(mode);
@@ -316,6 +343,52 @@ test "NOP" {
     try expect(cpu.a == 0x69);
 }
 
+test "ADC" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x50, ADC_IMM, 0x50, BRK });
+    try expect(cpu.a == 0xA0); // 0b1010_0000
+    try expect(cpu.statusHas(.Negative) == true);
+    try expect(cpu.statusHas(.Carry) == false);
+    try expect(cpu.statusHas(.Zero) == false);
+    // overflow
+    try expect(cpu.statusHas(.Overflow) == true);
+
+    // carry flag
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0xFF, ADC_IMM, 0x01, BRK });
+    try expect(cpu.a == 0x00);
+    try expect(cpu.statusHas(.Carry));
+    try expect(cpu.statusHas(.Zero));
+
+    // zero page
+    cpu.memWrite(0x42, 0x01);
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0xFF, ADC_ZP, 0x42, BRK });
+    try expect(cpu.a == 0x00);
+    try expect(cpu.statusHas(.Carry));
+    try expect(cpu.statusHas(.Zero));
+
+    // zero page + x
+    cpu.memWrite(0x42, 0x01);
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x10, TAX, LDA_IMM, 0xFF, ADC_ZPX, 0x32, BRK });
+    try expect(cpu.a == 0x00);
+    try expect(cpu.statusHas(.Carry));
+    try expect(cpu.statusHas(.Zero));
+
+    // abs
+    cpu.memWrite(0x4269, 0x01);
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0xFF, ADC_ABS, 0x69, 0x42, BRK });
+    try expect(cpu.a == 0x00);
+    try expect(cpu.statusHas(.Carry));
+    try expect(cpu.statusHas(.Zero));
+
+    // with sec
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x42, ADC_IMM, 0x26, BRK });
+    try expect(cpu.a == 0x68);
+    try expect(cpu.statusHas(.Carry) == false);
+    cpu.loadAndRun(&[_]u8{ SEC, LDA_IMM, 0x42, ADC_IMM, 0x26, BRK });
+    try expect(cpu.a == 0x69);
+    try expect(cpu.statusHas(.Carry) == false);
+}
+
 test "LDA immediate addressing" {
     var cpu = CPU{};
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, BRK });
@@ -352,6 +425,13 @@ test "LDA absolute X addressing" {
     try expect(cpu.a == 0x69);
 }
 
+test "SEC" {
+    var cpu = CPU{};
+    try expect(cpu.statusHas(.Carry) == false);
+    cpu.loadAndRun(&[_]u8{ SEC, BRK });
+    try expect(cpu.statusHas(.Carry) == true);
+}
+
 test "STA zero page addressing" {
     var cpu = CPU{};
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x42, STA_ZP, 0x15, BRK });
@@ -384,54 +464,54 @@ test "Register instructions" {
 test "Status flags" {
     var cpu = CPU{};
 
-    try expect(cpu.statusIs(.Carry) == false);
-    try expect(cpu.statusIs(.Zero) == false);
-    try expect(cpu.statusIs(.InterruptDisable) == false);
-    try expect(cpu.statusIs(.DecimalMode) == false);
-    try expect(cpu.statusIs(.Break) == false);
-    try expect(cpu.statusIs(.Break2) == false);
-    try expect(cpu.statusIs(.Overflow) == false);
-    try expect(cpu.statusIs(.Negative) == false);
+    try expect(cpu.statusHas(.Carry) == false);
+    try expect(cpu.statusHas(.Zero) == false);
+    try expect(cpu.statusHas(.InterruptDisable) == false);
+    try expect(cpu.statusHas(.DecimalMode) == false);
+    try expect(cpu.statusHas(.Break) == false);
+    try expect(cpu.statusHas(.Break2) == false);
+    try expect(cpu.statusHas(.Overflow) == false);
+    try expect(cpu.statusHas(.Negative) == false);
 
     cpu.statusSet(.Carry);
     cpu.statusSet(.InterruptDisable);
-    try expect(cpu.statusIs(.Carry) == true);
-    try expect(cpu.statusIs(.Zero) == false);
-    try expect(cpu.statusIs(.InterruptDisable) == true);
-    try expect(cpu.statusIs(.DecimalMode) == false);
-    try expect(cpu.statusIs(.Break) == false);
-    try expect(cpu.statusIs(.Break2) == false);
-    try expect(cpu.statusIs(.Overflow) == false);
-    try expect(cpu.statusIs(.Negative) == false);
+    try expect(cpu.statusHas(.Carry) == true);
+    try expect(cpu.statusHas(.Zero) == false);
+    try expect(cpu.statusHas(.InterruptDisable) == true);
+    try expect(cpu.statusHas(.DecimalMode) == false);
+    try expect(cpu.statusHas(.Break) == false);
+    try expect(cpu.statusHas(.Break2) == false);
+    try expect(cpu.statusHas(.Overflow) == false);
+    try expect(cpu.statusHas(.Negative) == false);
 
-    cpu.statusUnset(.Carry);
-    cpu.statusUnset(.InterruptDisable);
-    try expect(cpu.statusIs(.Carry) == false);
-    try expect(cpu.statusIs(.Zero) == false);
-    try expect(cpu.statusIs(.InterruptDisable) == false);
-    try expect(cpu.statusIs(.DecimalMode) == false);
-    try expect(cpu.statusIs(.Break) == false);
-    try expect(cpu.statusIs(.Break2) == false);
-    try expect(cpu.statusIs(.Overflow) == false);
-    try expect(cpu.statusIs(.Negative) == false);
+    cpu.statusClear(.Carry);
+    cpu.statusClear(.InterruptDisable);
+    try expect(cpu.statusHas(.Carry) == false);
+    try expect(cpu.statusHas(.Zero) == false);
+    try expect(cpu.statusHas(.InterruptDisable) == false);
+    try expect(cpu.statusHas(.DecimalMode) == false);
+    try expect(cpu.statusHas(.Break) == false);
+    try expect(cpu.statusHas(.Break2) == false);
+    try expect(cpu.statusHas(.Overflow) == false);
+    try expect(cpu.statusHas(.Negative) == false);
 
     cpu.statusSet(.Break);
     cpu.statusSet(.Break2);
-    try expect(cpu.statusIs(.Carry) == false);
-    try expect(cpu.statusIs(.Zero) == false);
-    try expect(cpu.statusIs(.InterruptDisable) == false);
-    try expect(cpu.statusIs(.DecimalMode) == false);
-    try expect(cpu.statusIs(.Break) == true);
-    try expect(cpu.statusIs(.Break2) == true);
-    try expect(cpu.statusIs(.Overflow) == false);
-    try expect(cpu.statusIs(.Negative) == false);
+    try expect(cpu.statusHas(.Carry) == false);
+    try expect(cpu.statusHas(.Zero) == false);
+    try expect(cpu.statusHas(.InterruptDisable) == false);
+    try expect(cpu.statusHas(.DecimalMode) == false);
+    try expect(cpu.statusHas(.Break) == true);
+    try expect(cpu.statusHas(.Break2) == true);
+    try expect(cpu.statusHas(.Overflow) == false);
+    try expect(cpu.statusHas(.Negative) == false);
 
     // Test zero flag
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x00, BRK });
-    try expect(cpu.statusIs(.Zero));
-    try expect(cpu.statusIs(.Negative) == false);
+    try expect(cpu.statusHas(.Zero));
+    try expect(cpu.statusHas(.Negative) == false);
 
     // Test negative flag
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x80, BRK });
-    try expect(cpu.statusIs(.Negative));
+    try expect(cpu.statusHas(.Negative));
 }
