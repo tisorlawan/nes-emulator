@@ -2,6 +2,7 @@ const std = @import("std");
 const expect = std.testing.expect;
 
 pub const AddrMode = enum {
+    Implicit,
     /// Immediate addressing uses the next byte as the operand value directly
     /// Example: LDA #$05 - Load the value $05 into accumulator
     Immediate,
@@ -59,7 +60,7 @@ pub const OpCode = struct {
     len: u8, // number of bytes
     cycles: u8, // number of cycles
     mode: AddrMode, // address mode
-    plus_if_crossed: u8, // + if crossed
+    cross_penalty: u8, // + if crossed
 };
 
 pub const BRK = 0x00;
@@ -73,6 +74,24 @@ pub const ADC_ABSX = 0x7D;
 pub const ADC_ABSY = 0x79;
 pub const ADC_INDX = 0x61;
 pub const ADC_INDY = 0x71;
+
+pub const AND_IMM = 0x29;
+pub const AND_ZP = 0x25;
+pub const AND_ZPX = 0x35;
+pub const AND_ABS = 0x2D;
+pub const AND_ABSX = 0x3D;
+pub const AND_ABSY = 0x39;
+pub const AND_INDX = 0x21;
+pub const AND_INDY = 0x31;
+
+pub const ASL_IMP = 0x0A;
+pub const ASL_ZP = 0x06;
+pub const ASL_ZPX = 0x16;
+pub const ASL_ABS = 0x0E;
+pub const ASL_ABSX = 0x1E;
+
+pub const BCC = 0x90; // Branch if Carry Clear
+pub const BCS = 0xB0; // Branch if Carry Set
 
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
@@ -88,7 +107,6 @@ pub const INX = 0xE8;
 
 pub const SEC = 0x38;
 
-// OpCode constants for STA
 pub const STA_ZP = 0x85;
 pub const STA_ZPX = 0x95;
 pub const STA_ABS = 0x8D;
@@ -98,40 +116,58 @@ pub const STA_INDX = 0x81;
 pub const STA_INDY = 0x91;
 
 const opCodes = [_]OpCode{
-    .{ .code = BRK, .mnemonic = "BRK", .len = 1, .cycles = 7, .mode = .None, .plus_if_crossed = 0 },
-    .{ .code = NOP, .mnemonic = "NOP", .len = 1, .cycles = 2, .mode = .None, .plus_if_crossed = 0 },
+    .{ .code = BRK, .mnemonic = "BRK", .len = 1, .cycles = 7, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = NOP, .mnemonic = "NOP", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
-    .{ .code = ADC_ABS, .mnemonic = "ADC", .len = 3, .cycles = 4, .mode = .Absolute, .plus_if_crossed = 0 },
-    .{ .code = ADC_ABSX, .mnemonic = "ADC", .len = 3, .cycles = 4, .mode = .AbsoluteX, .plus_if_crossed = 1 },
-    .{ .code = ADC_ABSY, .mnemonic = "ADC", .len = 3, .cycles = 4, .mode = .AbsoluteY, .plus_if_crossed = 1 },
-    .{ .code = ADC_IMM, .mnemonic = "ADC", .len = 2, .cycles = 2, .mode = .Immediate, .plus_if_crossed = 0 },
-    .{ .code = ADC_INDX, .mnemonic = "ADC", .len = 2, .cycles = 6, .mode = .IndirectX, .plus_if_crossed = 0 },
-    .{ .code = ADC_INDY, .mnemonic = "ADC", .len = 2, .cycles = 5, .mode = .IndirectY, .plus_if_crossed = 1 },
-    .{ .code = ADC_ZP, .mnemonic = "ADC", .len = 2, .cycles = 3, .mode = .ZeroPage, .plus_if_crossed = 0 },
-    .{ .code = ADC_ZPX, .mnemonic = "ADC", .len = 2, .cycles = 4, .mode = .ZeroPageX, .plus_if_crossed = 0 },
+    .{ .code = ADC_ABS, .mnemonic = "ADC", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = ADC_ABSX, .mnemonic = "ADC", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
+    .{ .code = ADC_ABSY, .mnemonic = "ADC", .len = 3, .cycles = 4, .mode = .AbsoluteY, .cross_penalty = 1 },
+    .{ .code = ADC_IMM, .mnemonic = "ADC", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
+    .{ .code = ADC_INDX, .mnemonic = "ADC", .len = 2, .cycles = 6, .mode = .IndirectX, .cross_penalty = 0 },
+    .{ .code = ADC_INDY, .mnemonic = "ADC", .len = 2, .cycles = 5, .mode = .IndirectY, .cross_penalty = 1 },
+    .{ .code = ADC_ZP, .mnemonic = "ADC", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = ADC_ZPX, .mnemonic = "ADC", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
 
-    .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .None, .plus_if_crossed = 0 },
+    .{ .code = AND_IMM, .mnemonic = "AND", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
+    .{ .code = AND_ZP, .mnemonic = "AND", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = AND_ZPX, .mnemonic = "AND", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
+    .{ .code = AND_ABS, .mnemonic = "AND", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = AND_ABSX, .mnemonic = "AND", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
+    .{ .code = AND_ABSY, .mnemonic = "AND", .len = 3, .cycles = 4, .mode = .AbsoluteY, .cross_penalty = 1 },
+    .{ .code = AND_INDX, .mnemonic = "AND", .len = 2, .cycles = 6, .mode = .IndirectX, .cross_penalty = 0 },
+    .{ .code = AND_INDY, .mnemonic = "AND", .len = 2, .cycles = 5, .mode = .IndirectY, .cross_penalty = 1 },
 
-    .{ .code = LDA_ABS, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .Absolute, .plus_if_crossed = 0 },
-    .{ .code = LDA_ABSX, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .AbsoluteX, .plus_if_crossed = 1 },
-    .{ .code = LDA_ABSY, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .AbsoluteY, .plus_if_crossed = 1 },
-    .{ .code = LDA_IMM, .mnemonic = "LDA", .len = 2, .cycles = 2, .mode = .Immediate, .plus_if_crossed = 0 },
-    .{ .code = LDA_INDX, .mnemonic = "LDA", .len = 2, .cycles = 6, .mode = .IndirectX, .plus_if_crossed = 0 },
-    .{ .code = LDA_INDY, .mnemonic = "LDA", .len = 2, .cycles = 5, .mode = .IndirectY, .plus_if_crossed = 1 },
-    .{ .code = LDA_ZP, .mnemonic = "LDA", .len = 2, .cycles = 3, .mode = .ZeroPage, .plus_if_crossed = 0 },
-    .{ .code = LDA_ZPX, .mnemonic = "LDA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .plus_if_crossed = 0 },
+    .{ .code = ASL_IMP, .mnemonic = "ASL", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = ASL_ZP, .mnemonic = "ASL", .len = 2, .cycles = 5, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = ASL_ZPX, .mnemonic = "ASL", .len = 2, .cycles = 6, .mode = .ZeroPageX, .cross_penalty = 0 },
+    .{ .code = ASL_ABS, .mnemonic = "ASL", .len = 3, .cycles = 6, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = ASL_ABSX, .mnemonic = "ASL", .len = 3, .cycles = 7, .mode = .AbsoluteX, .cross_penalty = 0 },
 
-    .{ .code = SEC, .mnemonic = "SEC", .len = 1, .cycles = 2, .mode = .None, .plus_if_crossed = 0 },
+    .{ .code = BCC, .mnemonic = "BCC", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
+    .{ .code = BCS, .mnemonic = "BCS", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
 
-    .{ .code = STA_ABS, .mnemonic = "STA", .len = 3, .cycles = 4, .mode = .Absolute, .plus_if_crossed = 0 },
-    .{ .code = STA_ABSX, .mnemonic = "STA", .len = 3, .cycles = 5, .mode = .AbsoluteX, .plus_if_crossed = 0 },
-    .{ .code = STA_ABSY, .mnemonic = "STA", .len = 3, .cycles = 5, .mode = .AbsoluteY, .plus_if_crossed = 0 },
-    .{ .code = STA_INDX, .mnemonic = "STA", .len = 2, .cycles = 6, .mode = .IndirectX, .plus_if_crossed = 0 },
-    .{ .code = STA_INDY, .mnemonic = "STA", .len = 2, .cycles = 6, .mode = .IndirectY, .plus_if_crossed = 0 },
-    .{ .code = STA_ZP, .mnemonic = "STA", .len = 2, .cycles = 3, .mode = .ZeroPage, .plus_if_crossed = 0 },
-    .{ .code = STA_ZPX, .mnemonic = "STA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .plus_if_crossed = 0 },
+    .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
-    .{ .code = TAX, .mnemonic = "TAX", .len = 1, .cycles = 2, .mode = .None, .plus_if_crossed = 0 },
+    .{ .code = LDA_ABS, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = LDA_ABSX, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
+    .{ .code = LDA_ABSY, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .AbsoluteY, .cross_penalty = 1 },
+    .{ .code = LDA_IMM, .mnemonic = "LDA", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
+    .{ .code = LDA_INDX, .mnemonic = "LDA", .len = 2, .cycles = 6, .mode = .IndirectX, .cross_penalty = 0 },
+    .{ .code = LDA_INDY, .mnemonic = "LDA", .len = 2, .cycles = 5, .mode = .IndirectY, .cross_penalty = 1 },
+    .{ .code = LDA_ZP, .mnemonic = "LDA", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = LDA_ZPX, .mnemonic = "LDA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
+
+    .{ .code = SEC, .mnemonic = "SEC", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+
+    .{ .code = STA_ABS, .mnemonic = "STA", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = STA_ABSX, .mnemonic = "STA", .len = 3, .cycles = 5, .mode = .AbsoluteX, .cross_penalty = 0 },
+    .{ .code = STA_ABSY, .mnemonic = "STA", .len = 3, .cycles = 5, .mode = .AbsoluteY, .cross_penalty = 0 },
+    .{ .code = STA_INDX, .mnemonic = "STA", .len = 2, .cycles = 6, .mode = .IndirectX, .cross_penalty = 0 },
+    .{ .code = STA_INDY, .mnemonic = "STA", .len = 2, .cycles = 6, .mode = .IndirectY, .cross_penalty = 0 },
+    .{ .code = STA_ZP, .mnemonic = "STA", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = STA_ZPX, .mnemonic = "STA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
+
+    .{ .code = TAX, .mnemonic = "TAX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 };
 
 pub const OpcodeMap = struct {
@@ -225,6 +261,12 @@ const CPU = struct {
                 ADC_IMM, ADC_ZP, ADC_ZPX, ADC_ABS, ADC_ABSX, ADC_ABSY, ADC_INDX, ADC_INDY => {
                     self.adc(OpcodeMap.get(opcode).?.mode);
                 },
+                AND_IMM, AND_ZP, AND_ZPX, AND_ABS, AND_ABSX, AND_ABSY, AND_INDX, AND_INDY => {
+                    self.and_(OpcodeMap.get(opcode).?.mode);
+                },
+                ASL_IMP, ASL_ZP, ASL_ZPX, ASL_ABS, ASL_ABSX => {
+                    _ = self.asl(OpcodeMap.get(opcode).?.mode, opcode == ASL_IMP);
+                },
                 INX => self.inx(),
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
@@ -244,8 +286,7 @@ const CPU = struct {
     }
 
     fn adc(self: *CPU, mode: AddrMode) void {
-        const addr = self.get_op_addr(mode);
-        const value = self.memRead(addr);
+        const value = self.memRead(self.get_op_addr(mode));
         const carry_in = self.status & 0b0000_0001;
         const result: u16 = @as(u16, value) + @as(u16, self.a) + carry_in;
 
@@ -273,9 +314,41 @@ const CPU = struct {
         self.update_zero_and_negative_flag(self.a);
     }
 
+    fn and_(self: *CPU, mode: AddrMode) void {
+        const value = self.memRead(self.get_op_addr(mode));
+        self.a &= value;
+        self.update_zero_and_negative_flag(self.a);
+    }
+
+    fn asl(self: *CPU, mode: AddrMode, for_accumulator: bool) u8 {
+        if (for_accumulator) {
+            var data = self.a;
+            if (data >> 7 == 1) {
+                self.statusSet(.Carry);
+            } else {
+                self.statusClear(.Carry);
+            }
+            data = data << 1;
+            self.a = data;
+            self.update_zero_and_negative_flag(self.a);
+            return data;
+        } else {
+            const addr = self.get_op_addr(mode);
+            var data = self.memRead(addr);
+            if (data >> 7 == 1) {
+                self.statusSet(.Carry);
+            } else {
+                self.statusClear(.Carry);
+            }
+            data = data << 1;
+            self.memWrite(addr, data);
+            self.update_zero_and_negative_flag(data);
+            return data;
+        }
+    }
+
     fn lda(self: *CPU, mode: AddrMode) void {
-        const addr = self.get_op_addr(mode);
-        const value = self.memRead(addr);
+        const value = self.memRead(self.get_op_addr(mode));
 
         self.a = value;
         self.update_zero_and_negative_flag(self.a);
@@ -318,7 +391,7 @@ const CPU = struct {
                 const deref = (@as(u16, hi) << 8) | lo;
                 break :blk (deref +% self.y);
             },
-            AddrMode.None => unreachable,
+            AddrMode.None, AddrMode.Implicit => unreachable,
         };
     }
 
@@ -387,6 +460,39 @@ test "ADC" {
     cpu.loadAndRun(&[_]u8{ SEC, LDA_IMM, 0x42, ADC_IMM, 0x26, BRK });
     try expect(cpu.a == 0x69);
     try expect(cpu.statusHas(.Carry) == false);
+}
+
+test "AND" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0b1001_0101, AND_IMM, 0b1001_0011 });
+    try expect(cpu.a == 0b1001_0001);
+    try expect(cpu.statusHas(.Negative));
+}
+
+test "ASL" {
+    var cpu = CPU{};
+
+    // accumulator
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x55, ASL_IMP, BRK });
+    try expect(cpu.a == 0xAA); // 0b0101_0101 -> 0b1010_1010
+    try expect(cpu.statusHas(.Negative) == true);
+    try expect(cpu.statusHas(.Carry) == false);
+    try expect(cpu.statusHas(.Zero) == false);
+
+    // Test carry flag
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x80, ASL_IMP, BRK });
+    try expect(cpu.a == 0x00);
+    try expect(cpu.statusHas(.Carry) == true);
+    try expect(cpu.statusHas(.Zero) == true);
+    try expect(cpu.statusHas(.Negative) == false);
+
+    // Test zero page
+    cpu.memWrite(0x42, 0x55);
+    cpu.loadAndRun(&[_]u8{ ASL_ZP, 0x42, BRK });
+    try expect(cpu.memRead(0x42) == 0xAA);
+    try expect(cpu.statusHas(.Negative) == true);
+    try expect(cpu.statusHas(.Carry) == false);
+    try expect(cpu.statusHas(.Zero) == false);
 }
 
 test "LDA immediate addressing" {
