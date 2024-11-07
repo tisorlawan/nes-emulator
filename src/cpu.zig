@@ -7,6 +7,8 @@ pub const AddrMode = enum {
     /// Example: LDA #$05 - Load the value $05 into accumulator
     Immediate,
 
+    Relative,
+
     /// Zero Page addressing uses the next byte as an address in page zero ($0000-$00FF)
     /// Example: LDA $05 - Load the value from memory location $0005
     ZeroPage,
@@ -92,6 +94,10 @@ pub const ASL_ABSX = 0x1E;
 
 pub const BCC = 0x90; // Branch if Carry Clear
 pub const BCS = 0xB0; // Branch if Carry Set
+pub const BEQ = 0xF0; // Branch if Equal (if zero flag is set)
+
+pub const BIT_ZP = 0x24; // Bit Test Zero Page
+pub const BIT_ABS = 0x2C; // Bit Test Absolute
 
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
@@ -145,6 +151,10 @@ const opCodes = [_]OpCode{
 
     .{ .code = BCC, .mnemonic = "BCC", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
     .{ .code = BCS, .mnemonic = "BCS", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
+    .{ .code = BEQ, .mnemonic = "BEQ", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 }, // +1 if branch taken, +2 if page boundary crossed
+
+    .{ .code = BIT_ZP, .mnemonic = "BIT", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = BIT_ABS, .mnemonic = "BIT", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
 
     .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
@@ -267,6 +277,8 @@ const CPU = struct {
                 ASL_IMP, ASL_ZP, ASL_ZPX, ASL_ABS, ASL_ABSX => {
                     _ = self.asl(OpcodeMap.get(opcode).?.mode, opcode == ASL_IMP);
                 },
+                BCC => self.bcc(),
+                BCS => self.bcs(),
                 INX => self.inx(),
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
@@ -347,6 +359,14 @@ const CPU = struct {
         }
     }
 
+    fn bcc(self: *CPU) void {
+        self.branch(!self.statusHas(.Carry));
+    }
+
+    fn bcs(self: *CPU) void {
+        self.branch(self.statusHas(.Carry));
+    }
+
     fn lda(self: *CPU, mode: AddrMode) void {
         const value = self.memRead(self.get_op_addr(mode));
 
@@ -391,7 +411,7 @@ const CPU = struct {
                 const deref = (@as(u16, hi) << 8) | lo;
                 break :blk (deref +% self.y);
             },
-            AddrMode.None, AddrMode.Implicit => unreachable,
+            AddrMode.None, AddrMode.Implicit, AddrMode.Relative => unreachable,
         };
     }
 
@@ -406,6 +426,13 @@ const CPU = struct {
             self.status |= 0b1000_0000;
         } else {
             self.status &= 0b0111_1111;
+        }
+    }
+
+    fn branch(self: *CPU, condition: bool) void {
+        if (condition) {
+            const jump: i8 = @bitCast(self.memRead(self.pc));
+            self.pc = self.pc +% 1 +% @as(u16, @intCast(@as(i16, jump)));
         }
     }
 };
@@ -493,6 +520,29 @@ test "ASL" {
     try expect(cpu.statusHas(.Negative) == true);
     try expect(cpu.statusHas(.Carry) == false);
     try expect(cpu.statusHas(.Zero) == false);
+}
+
+test "BCC" {
+    var cpu = CPU{};
+
+    cpu.loadAndRun(&[_]u8{ BCC, 2, LDA_IMM, 0x42, BRK });
+    try expect(cpu.a == 0x00);
+
+    cpu.loadAndRun(&[_]u8{ BCC, 2, NOP, NOP, LDA_IMM, 0x42, BRK });
+    try expect(cpu.a == 0x42);
+}
+
+test "BCS" {
+    var cpu = CPU{};
+
+    cpu.loadAndRun(&[_]u8{ BCS, 2, LDA_IMM, 0x42, BRK });
+    try expect(cpu.a == 0x42);
+
+    cpu.loadAndRun(&[_]u8{ SEC, BCS, 2, LDA_IMM, 0x42, BRK });
+    try expect(cpu.a == 0x00);
+
+    cpu.loadAndRun(&[_]u8{ SEC, BCS, 2, NOP, NOP, LDA_IMM, 0x42, BRK });
+    try expect(cpu.a == 0x42);
 }
 
 test "LDA immediate addressing" {
