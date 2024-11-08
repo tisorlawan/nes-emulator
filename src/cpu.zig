@@ -99,6 +99,9 @@ pub const BEQ = 0xF0; // Branch if Equal (if zero flag is set)
 pub const BIT_ZP = 0x24; // Bit Test Zero Page
 pub const BIT_ABS = 0x2C; // Bit Test Absolute
 
+pub const BMI = 0x30; // Branch on MInus
+pub const BNE = 0xD0; // Branch on Not Equal
+
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
 pub const LDA_ZPX = 0xB5;
@@ -155,6 +158,9 @@ const opCodes = [_]OpCode{
 
     .{ .code = BIT_ZP, .mnemonic = "BIT", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
     .{ .code = BIT_ABS, .mnemonic = "BIT", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+
+    .{ .code = BMI, .mnemonic = "BMI", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
+    .{ .code = BNE, .mnemonic = "BNE", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
 
     .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
@@ -257,6 +263,14 @@ const CPU = struct {
         return (self.status & @intFromEnum(status)) != 0;
     }
 
+    pub fn statusSetCond(self: *CPU, status: Status, condition: bool) void {
+        if (condition) {
+            self.statusSet(status);
+        } else {
+            self.statusClear(status);
+        }
+    }
+
     pub fn run(self: *CPU) void {
         while (true) {
             const opcode = self.memRead(self.pc);
@@ -279,6 +293,8 @@ const CPU = struct {
                 },
                 BCC => self.bcc(),
                 BCS => self.bcs(),
+                BEQ => self.beq(),
+                BIT_ABS, BIT_ZP => self.bit(OpcodeMap.get(opcode).?.mode),
                 INX => self.inx(),
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
@@ -365,6 +381,21 @@ const CPU = struct {
 
     fn bcs(self: *CPU) void {
         self.branch(self.statusHas(.Carry));
+    }
+
+    fn beq(self: *CPU) void {
+        self.branch(self.statusHas(.Zero));
+    }
+
+    fn bit(self: *CPU, mode: AddrMode) void {
+        const value = self.memRead(self.get_op_addr(mode));
+        const and_result = self.a & value;
+        self.statusSetCond(.Zero, and_result == 0);
+
+        const n = (value & 0b1000_0000);
+        self.statusSetCond(.Negative, n > 0);
+        const v = (value & 0b0100_0000);
+        self.statusSetCond(.Overflow, v > 0);
     }
 
     fn lda(self: *CPU, mode: AddrMode) void {
@@ -543,6 +574,32 @@ test "BCS" {
 
     cpu.loadAndRun(&[_]u8{ SEC, BCS, 2, NOP, NOP, LDA_IMM, 0x42, BRK });
     try expect(cpu.a == 0x42);
+}
+
+test "BEQ" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0, BEQ, 2, LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0);
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 1, BEQ, 2, LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x69);
+}
+
+test "BIT" {
+    var cpu = CPU{};
+    cpu.memWrite(0x42, 0x00);
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0xFF, BIT_ZP, 0x42, BRK });
+    try expect(cpu.statusHas(.Zero));
+    try expect(!cpu.statusHas(.Negative));
+    try expect(!cpu.statusHas(.Overflow));
+
+    // Test both negative and overflow flags
+    cpu.memWrite(0x42, 0b1100_0000);
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0xFF, BIT_ZP, 0x42, BRK });
+    try expect(!cpu.statusHas(.Zero));
+    try expect(cpu.statusHas(.Negative));
+    try expect(cpu.statusHas(.Overflow));
 }
 
 test "LDA immediate addressing" {
