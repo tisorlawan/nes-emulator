@@ -101,6 +101,7 @@ pub const BIT_ABS = 0x2C; // Bit Test Absolute
 
 pub const BMI = 0x30; // Branch on MInus
 pub const BNE = 0xD0; // Branch on Not Equal
+pub const BPL = 0x10; // Branch on Positive
 
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
@@ -161,6 +162,7 @@ const opCodes = [_]OpCode{
 
     .{ .code = BMI, .mnemonic = "BMI", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
     .{ .code = BNE, .mnemonic = "BNE", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
+    .{ .code = BPL, .mnemonic = "BPL", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
 
     .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
@@ -295,6 +297,9 @@ const CPU = struct {
                 BCS => self.bcs(),
                 BEQ => self.beq(),
                 BIT_ABS, BIT_ZP => self.bit(OpcodeMap.get(opcode).?.mode),
+                BMI => self.bmi(),
+                BNE => self.bne(),
+                BPL => self.bpl(),
                 INX => self.inx(),
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
@@ -396,6 +401,18 @@ const CPU = struct {
         self.statusSetCond(.Negative, n > 0);
         const v = (value & 0b0100_0000);
         self.statusSetCond(.Overflow, v > 0);
+    }
+
+    fn bmi(self: *CPU) void {
+        self.branch(self.statusHas(.Negative));
+    }
+
+    fn bne(self: *CPU) void {
+        self.branch(!self.statusHas(.Zero));
+    }
+
+    fn bpl(self: *CPU) void {
+        self.branch(!self.statusHas(.Negative));
     }
 
     fn lda(self: *CPU, mode: AddrMode) void {
@@ -600,6 +617,40 @@ test "BIT" {
     try expect(!cpu.statusHas(.Zero));
     try expect(cpu.statusHas(.Negative));
     try expect(cpu.statusHas(.Overflow));
+}
+
+test "BMI" {
+    var cpu = CPU{};
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x80, BMI, 2, LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x80);
+    try expect(cpu.statusHas(.Negative));
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x00, BMI, 2, LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x69);
+    try expect(!cpu.statusHas(.Negative));
+}
+
+test "BNE" {
+    var cpu = CPU{};
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x01, BNE, 2, LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x01);
+    try expect(!cpu.statusHas(.Zero));
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x00, BNE, 2, LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x69);
+    try expect(!cpu.statusHas(.Zero));
+}
+
+test "BPL" {
+    var cpu = CPU{};
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x80, BPL, 2, LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x69);
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x00, BPL, 2, LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x00);
 }
 
 test "LDA immediate addressing" {
