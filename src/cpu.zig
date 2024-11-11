@@ -105,6 +105,9 @@ pub const BPL = 0x10; // Branch on Positive
 pub const BVC = 0x50; // Branch on Overflow Clear
 pub const BVS = 0x70; // Branch on Overflow Set
 
+pub const CLC = 0x18; // Added Clear Carry Flag
+pub const CLD = 0xD8; // Added Clear Decimal Mode
+
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
 pub const LDA_ZPX = 0xB5;
@@ -117,7 +120,8 @@ pub const LDA_INDY = 0xB1;
 pub const TAX = 0xAA;
 pub const INX = 0xE8;
 
-pub const SEC = 0x38;
+pub const SEC = 0x38; // SEt Carry Flag
+pub const SED = 0xF8; // SEt Decimal Flag
 
 pub const STA_ZP = 0x85;
 pub const STA_ZPX = 0x95;
@@ -168,6 +172,9 @@ const opCodes = [_]OpCode{
     .{ .code = BVC, .mnemonic = "BVC", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
     .{ .code = BVS, .mnemonic = "BVS", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
 
+    .{ .code = CLC, .mnemonic = "CLC", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = CLD, .mnemonic = "CLD", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+
     .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
     .{ .code = LDA_ABS, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
@@ -180,6 +187,7 @@ const opCodes = [_]OpCode{
     .{ .code = LDA_ZPX, .mnemonic = "LDA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
 
     .{ .code = SEC, .mnemonic = "SEC", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = SED, .mnemonic = "SED", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
     .{ .code = STA_ABS, .mnemonic = "STA", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
     .{ .code = STA_ABSX, .mnemonic = "STA", .len = 3, .cycles = 5, .mode = .AbsoluteX, .cross_penalty = 0 },
@@ -294,22 +302,25 @@ const CPU = struct {
                 ASL_IMP, ASL_ZP, ASL_ZPX, ASL_ABS, ASL_ABSX => {
                     _ = self.asl(OpcodeMap.get(opcode).?.mode, opcode == ASL_IMP);
                 },
-                BCC => self.bcc(),
-                BCS => self.bcs(),
-                BEQ => self.beq(),
+                BCC => self.branch(!self.statusHas(.Carry)),
+                BCS => self.branch(self.statusHas(.Carry)),
+                BEQ => self.branch(self.statusHas(.Zero)),
                 BIT_ABS, BIT_ZP => self.bit(OpcodeMap.get(opcode).?.mode),
-                BMI => self.bmi(),
-                BNE => self.bne(),
-                BPL => self.bpl(),
+                BMI => self.branch(self.statusHas(.Negative)),
+                BNE => self.branch(!self.statusHas(.Zero)),
+                BPL => self.branch(!self.statusHas(.Negative)),
                 BRK => break,
-                BVC => self.bvc(),
-                BVS => self.bvs(),
+                BVC => self.branch(!self.statusHas(.Overflow)),
+                BVS => self.branch(self.statusHas(.Overflow)),
+                CLC => self.statusClear(.Carry),
+                CLD => self.statusClear(.DecimalMode),
                 INX => self.inx(),
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
                 },
                 NOP => {},
                 SEC => self.statusSet(.Carry),
+                SED => self.statusSet(.DecimalMode),
                 STA_ZP, STA_ZPX, STA_ABS, STA_ABSX, STA_ABSY, STA_INDX, STA_INDY => {
                     self.sta(OpcodeMap.get(opcode).?.mode);
                 },
@@ -385,18 +396,6 @@ const CPU = struct {
         }
     }
 
-    fn bcc(self: *CPU) void {
-        self.branch(!self.statusHas(.Carry));
-    }
-
-    fn bcs(self: *CPU) void {
-        self.branch(self.statusHas(.Carry));
-    }
-
-    fn beq(self: *CPU) void {
-        self.branch(self.statusHas(.Zero));
-    }
-
     fn bit(self: *CPU, mode: AddrMode) void {
         const value = self.memRead(self.get_op_addr(mode));
         const and_result = self.a & value;
@@ -406,26 +405,6 @@ const CPU = struct {
         self.statusSetCond(.Negative, n > 0);
         const v = (value & 0b0100_0000);
         self.statusSetCond(.Overflow, v > 0);
-    }
-
-    fn bmi(self: *CPU) void {
-        self.branch(self.statusHas(.Negative));
-    }
-
-    fn bne(self: *CPU) void {
-        self.branch(!self.statusHas(.Zero));
-    }
-
-    fn bpl(self: *CPU) void {
-        self.branch(!self.statusHas(.Negative));
-    }
-
-    fn bvc(self: *CPU) void {
-        self.branch(!self.statusHas(.Overflow));
-    }
-
-    fn bvs(self: *CPU) void {
-        self.branch(self.statusHas(.Overflow));
     }
 
     fn lda(self: *CPU, mode: AddrMode) void {
@@ -686,6 +665,21 @@ test "BVC and BVS" {
     try expect(cpu.a == 0x50);
 }
 
+test "CL*" {
+    var cpu = CPU{};
+    // CLC
+    cpu.loadAndRun(&[_]u8{ SEC, BRK });
+    try expect(cpu.statusHas(.Carry));
+    cpu.loadAndRun(&[_]u8{ SEC, CLC, BRK });
+    try expect(!cpu.statusHas(.Carry));
+
+    // CLD
+    cpu.loadAndRun(&[_]u8{ SED, BRK });
+    try expect(cpu.statusHas(.DecimalMode));
+    cpu.loadAndRun(&[_]u8{ SED, CLD, BRK });
+    try expect(!cpu.statusHas(.DecimalMode));
+}
+
 test "LDA immediate addressing" {
     var cpu = CPU{};
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, BRK });
@@ -722,12 +716,18 @@ test "LDA absolute X addressing" {
     try expect(cpu.a == 0x69);
 }
 
-test "SEC" {
+test "SE*" {
+    // SEC
     var cpu = CPU{};
-    try expect(cpu.statusHas(.Carry) == false);
+    try expect(!cpu.statusHas(.Carry));
     cpu.loadAndRun(&[_]u8{ SEC, BRK });
+    try expect(cpu.statusHas(.Carry));
 
-    try expect(cpu.statusHas(.Carry) == true);
+    // SED
+    cpu = CPU{};
+    try expect(!cpu.statusHas(.DecimalMode));
+    cpu.loadAndRun(&[_]u8{ SED, BRK });
+    try expect(cpu.statusHas(.DecimalMode));
 }
 
 test "STA zero page addressing" {
