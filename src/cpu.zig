@@ -102,6 +102,8 @@ pub const BIT_ABS = 0x2C; // Bit Test Absolute
 pub const BMI = 0x30; // Branch on MInus
 pub const BNE = 0xD0; // Branch on Not Equal
 pub const BPL = 0x10; // Branch on Positive
+pub const BVC = 0x50; // Branch on Overflow Clear
+pub const BVS = 0x70; // Branch on Overflow Set
 
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
@@ -163,6 +165,8 @@ const opCodes = [_]OpCode{
     .{ .code = BMI, .mnemonic = "BMI", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
     .{ .code = BNE, .mnemonic = "BNE", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
     .{ .code = BPL, .mnemonic = "BPL", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
+    .{ .code = BVC, .mnemonic = "BVC", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
+    .{ .code = BVS, .mnemonic = "BVS", .len = 2, .cycles = 2, .mode = .Relative, .cross_penalty = 1 },
 
     .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
@@ -280,10 +284,7 @@ const CPU = struct {
 
             const initial_pc = self.pc;
 
-            // std.debug.print("OP = {s} = {any}\n", .{ OpcodeMap.get(opcode).?.mnemonic, OpcodeMap.get(opcode).? });
             switch (opcode) {
-                BRK => break,
-                NOP => {},
                 ADC_IMM, ADC_ZP, ADC_ZPX, ADC_ABS, ADC_ABSX, ADC_ABSY, ADC_INDX, ADC_INDY => {
                     self.adc(OpcodeMap.get(opcode).?.mode);
                 },
@@ -300,10 +301,14 @@ const CPU = struct {
                 BMI => self.bmi(),
                 BNE => self.bne(),
                 BPL => self.bpl(),
+                BRK => break,
+                BVC => self.bvc(),
+                BVS => self.bvs(),
                 INX => self.inx(),
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
                 },
+                NOP => {},
                 SEC => self.statusSet(.Carry),
                 STA_ZP, STA_ZPX, STA_ABS, STA_ABSX, STA_ABSY, STA_INDX, STA_INDY => {
                     self.sta(OpcodeMap.get(opcode).?.mode);
@@ -413,6 +418,14 @@ const CPU = struct {
 
     fn bpl(self: *CPU) void {
         self.branch(!self.statusHas(.Negative));
+    }
+
+    fn bvc(self: *CPU) void {
+        self.branch(!self.statusHas(.Overflow));
+    }
+
+    fn bvs(self: *CPU) void {
+        self.branch(self.statusHas(.Overflow));
     }
 
     fn lda(self: *CPU, mode: AddrMode) void {
@@ -533,6 +546,7 @@ test "ADC" {
     try expect(cpu.a == 0x68);
     try expect(cpu.statusHas(.Carry) == false);
     cpu.loadAndRun(&[_]u8{ SEC, LDA_IMM, 0x42, ADC_IMM, 0x26, BRK });
+
     try expect(cpu.a == 0x69);
     try expect(cpu.statusHas(.Carry) == false);
 }
@@ -653,6 +667,25 @@ test "BPL" {
     try expect(cpu.a == 0x00);
 }
 
+test "BVC and BVS" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x50, ADC_IMM, 0x50, BVS, 2, LDA_IMM, 0x69, BRK });
+    try expect(cpu.statusHas(.Overflow));
+    try expect(cpu.a == 0xA0);
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x50, ADC_IMM, 0x50, BVC, 2, LDA_IMM, 0x69, BRK });
+    try expect(cpu.statusHas(.Overflow));
+    try expect(cpu.a == 0x69);
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x00, ADC_IMM, 0x50, BVS, 2, LDA_IMM, 0x69, BRK });
+    try expect(!cpu.statusHas(.Overflow));
+    try expect(cpu.a == 0x69);
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x00, ADC_IMM, 0x50, BRK, BVC, 2, LDA_IMM, 0x69, BRK });
+    try expect(!cpu.statusHas(.Overflow));
+    try expect(cpu.a == 0x50);
+}
+
 test "LDA immediate addressing" {
     var cpu = CPU{};
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, BRK });
@@ -693,6 +726,7 @@ test "SEC" {
     var cpu = CPU{};
     try expect(cpu.statusHas(.Carry) == false);
     cpu.loadAndRun(&[_]u8{ SEC, BRK });
+
     try expect(cpu.statusHas(.Carry) == true);
 }
 
