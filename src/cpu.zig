@@ -105,8 +105,10 @@ pub const BPL = 0x10; // Branch on Positive
 pub const BVC = 0x50; // Branch on Overflow Clear
 pub const BVS = 0x70; // Branch on Overflow Set
 
-pub const CLC = 0x18; // Added Clear Carry Flag
-pub const CLD = 0xD8; // Added Clear Decimal Mode
+pub const CLC = 0x18; // CLear Carry Flag
+pub const CLD = 0xD8; // CLear Decimal Mode
+pub const CLI = 0x58; // CLear Decimal Interupt Disable Flag
+pub const CLV = 0xB8; // CLear oVerflow Flag
 
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
@@ -122,6 +124,7 @@ pub const INX = 0xE8;
 
 pub const SEC = 0x38; // SEt Carry Flag
 pub const SED = 0xF8; // SEt Decimal Flag
+pub const SEI = 0x78; // SEt Interrupt Disable Flag
 
 pub const STA_ZP = 0x85;
 pub const STA_ZPX = 0x95;
@@ -174,6 +177,8 @@ const opCodes = [_]OpCode{
 
     .{ .code = CLC, .mnemonic = "CLC", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
     .{ .code = CLD, .mnemonic = "CLD", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = CLI, .mnemonic = "CLI", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = CLV, .mnemonic = "CLV", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
     .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
@@ -188,6 +193,7 @@ const opCodes = [_]OpCode{
 
     .{ .code = SEC, .mnemonic = "SEC", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
     .{ .code = SED, .mnemonic = "SED", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = SEI, .mnemonic = "SEI", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
     .{ .code = STA_ABS, .mnemonic = "STA", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
     .{ .code = STA_ABSX, .mnemonic = "STA", .len = 3, .cycles = 5, .mode = .AbsoluteX, .cross_penalty = 0 },
@@ -314,6 +320,8 @@ const CPU = struct {
                 BVS => self.branch(self.statusHas(.Overflow)),
                 CLC => self.statusClear(.Carry),
                 CLD => self.statusClear(.DecimalMode),
+                CLI => self.statusClear(.InterruptDisable),
+                CLV => self.statusClear(.Overflow),
                 INX => self.inx(),
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
@@ -321,6 +329,7 @@ const CPU = struct {
                 NOP => {},
                 SEC => self.statusSet(.Carry),
                 SED => self.statusSet(.DecimalMode),
+                SEI => self.statusSet(.InterruptDisable),
                 STA_ZP, STA_ZPX, STA_ABS, STA_ABSX, STA_ABSY, STA_INDX, STA_INDY => {
                     self.sta(OpcodeMap.get(opcode).?.mode);
                 },
@@ -678,6 +687,18 @@ test "CL*" {
     try expect(cpu.statusHas(.DecimalMode));
     cpu.loadAndRun(&[_]u8{ SED, CLD, BRK });
     try expect(!cpu.statusHas(.DecimalMode));
+
+    // CLI
+    cpu.loadAndRun(&[_]u8{ SEI, BRK });
+    try expect(cpu.statusHas(.InterruptDisable));
+    cpu.loadAndRun(&[_]u8{ SEI, CLI, BRK });
+    try expect(!cpu.statusHas(.InterruptDisable));
+
+    // CLV
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x50, ADC_IMM, 0x50, BRK });
+    try expect(cpu.statusHas(.Overflow));
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x50, ADC_IMM, 0x50, CLV, BRK });
+    try expect(!cpu.statusHas(.Overflow));
 }
 
 test "LDA immediate addressing" {
@@ -728,6 +749,12 @@ test "SE*" {
     try expect(!cpu.statusHas(.DecimalMode));
     cpu.loadAndRun(&[_]u8{ SED, BRK });
     try expect(cpu.statusHas(.DecimalMode));
+
+    // SEI
+    cpu = CPU{};
+    try expect(!cpu.statusHas(.InterruptDisable));
+    cpu.loadAndRun(&[_]u8{ SEI, BRK });
+    try expect(cpu.statusHas(.InterruptDisable));
 }
 
 test "STA zero page addressing" {
