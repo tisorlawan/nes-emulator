@@ -110,6 +110,24 @@ pub const CLD = 0xD8; // CLear Decimal Mode
 pub const CLI = 0x58; // CLear Decimal Interupt Disable Flag
 pub const CLV = 0xB8; // CLear oVerflow Flag
 
+// Compare instructions
+pub const CMP_IMM = 0xC9;
+pub const CMP_ZP = 0xC5;
+pub const CMP_ZPX = 0xD5;
+pub const CMP_ABS = 0xCD;
+pub const CMP_ABSX = 0xDD;
+pub const CMP_ABSY = 0xD9;
+pub const CMP_INDX = 0xC1;
+pub const CMP_INDY = 0xD1;
+
+pub const CPX_IMM = 0xE0;
+pub const CPX_ZP = 0xE4;
+pub const CPX_ABS = 0xEC;
+
+pub const CPY_IMM = 0xC0;
+pub const CPY_ZP = 0xC4;
+pub const CPY_ABS = 0xCC;
+
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
 pub const LDA_ZPX = 0xB5;
@@ -118,6 +136,18 @@ pub const LDA_ABSX = 0xBD;
 pub const LDA_ABSY = 0xB9;
 pub const LDA_INDX = 0xA1;
 pub const LDA_INDY = 0xB1;
+
+pub const LDX_IMM = 0xA2;
+pub const LDX_ZP = 0xA6;
+pub const LDX_ZPY = 0xB6;
+pub const LDX_ABS = 0xAE;
+pub const LDX_ABSY = 0xBE;
+
+pub const LDY_IMM = 0xA0;
+pub const LDY_ZP = 0xA4;
+pub const LDY_ZPX = 0xB4;
+pub const LDY_ABS = 0xAC;
+pub const LDY_ABSX = 0xBC;
 
 pub const TAX = 0xAA;
 pub const INX = 0xE8;
@@ -180,6 +210,23 @@ const opCodes = [_]OpCode{
     .{ .code = CLI, .mnemonic = "CLI", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
     .{ .code = CLV, .mnemonic = "CLV", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
+    .{ .code = CMP_IMM, .mnemonic = "CMP", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
+    .{ .code = CMP_ZP, .mnemonic = "CMP", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = CMP_ZPX, .mnemonic = "CMP", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
+    .{ .code = CMP_ABS, .mnemonic = "CMP", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = CMP_ABSX, .mnemonic = "CMP", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
+    .{ .code = CMP_ABSY, .mnemonic = "CMP", .len = 3, .cycles = 4, .mode = .AbsoluteY, .cross_penalty = 1 },
+    .{ .code = CMP_INDX, .mnemonic = "CMP", .len = 2, .cycles = 6, .mode = .IndirectX, .cross_penalty = 0 },
+    .{ .code = CMP_INDY, .mnemonic = "CMP", .len = 2, .cycles = 5, .mode = .IndirectY, .cross_penalty = 1 },
+
+    .{ .code = CPX_IMM, .mnemonic = "CPX", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
+    .{ .code = CPX_ZP, .mnemonic = "CPX", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = CPX_ABS, .mnemonic = "CPX", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+
+    .{ .code = CPY_IMM, .mnemonic = "CPY", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
+    .{ .code = CPY_ZP, .mnemonic = "CPY", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = CPY_ABS, .mnemonic = "CPY", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+
     .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
     .{ .code = LDA_ABS, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
@@ -190,6 +237,18 @@ const opCodes = [_]OpCode{
     .{ .code = LDA_INDY, .mnemonic = "LDA", .len = 2, .cycles = 5, .mode = .IndirectY, .cross_penalty = 1 },
     .{ .code = LDA_ZP, .mnemonic = "LDA", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
     .{ .code = LDA_ZPX, .mnemonic = "LDA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
+
+    .{ .code = LDX_IMM, .mnemonic = "LDX", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
+    .{ .code = LDX_ZP, .mnemonic = "LDX", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = LDX_ZPY, .mnemonic = "LDX", .len = 2, .cycles = 4, .mode = .ZeroPageY, .cross_penalty = 0 },
+    .{ .code = LDX_ABS, .mnemonic = "LDX", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = LDX_ABSY, .mnemonic = "LDX", .len = 3, .cycles = 4, .mode = .AbsoluteY, .cross_penalty = 1 },
+
+    .{ .code = LDY_IMM, .mnemonic = "LDY", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
+    .{ .code = LDY_ZP, .mnemonic = "LDY", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = LDY_ZPX, .mnemonic = "LDY", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
+    .{ .code = LDY_ABS, .mnemonic = "LDY", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = LDY_ABSX, .mnemonic = "LDY", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
 
     .{ .code = SEC, .mnemonic = "SEC", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
     .{ .code = SED, .mnemonic = "SED", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
@@ -318,14 +377,24 @@ const CPU = struct {
                 BRK => break,
                 BVC => self.branch(!self.statusHas(.Overflow)),
                 BVS => self.branch(self.statusHas(.Overflow)),
+
                 CLC => self.statusClear(.Carry),
                 CLD => self.statusClear(.DecimalMode),
                 CLI => self.statusClear(.InterruptDisable),
                 CLV => self.statusClear(.Overflow),
+
+                CMP_IMM, CMP_ZP, CMP_ZPX, CMP_ABS, CMP_ABSX, CMP_ABSY, CMP_INDX, CMP_INDY => self.cmp(self.a, OpcodeMap.get(opcode).?.mode),
+                CPX_IMM, CPX_ZP, CPX_ABS => self.cmp(self.x, OpcodeMap.get(opcode).?.mode),
+                CPY_IMM, CPY_ZP, CPY_ABS => self.cmp(self.y, OpcodeMap.get(opcode).?.mode),
+
                 INX => self.inx(),
+
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
                 },
+                LDX_IMM, LDX_ZP, LDX_ZPY, LDX_ABS, LDX_ABSY => self.ldx(OpcodeMap.get(opcode).?.mode),
+                LDY_IMM, LDY_ZP, LDY_ZPX, LDY_ABS, LDY_ABSX => self.ldy(OpcodeMap.get(opcode).?.mode),
+
                 NOP => {},
                 SEC => self.statusSet(.Carry),
                 SED => self.statusSet(.DecimalMode),
@@ -416,11 +485,29 @@ const CPU = struct {
         self.statusSetCond(.Overflow, v > 0);
     }
 
+    fn cmp(self: *CPU, value: u8, mode: AddrMode) void {
+        const m = self.memRead(self.get_op_addr(mode));
+        self.statusSetCond(.Carry, value >= m);
+        self.statusSetCond(.Zero, value == m);
+        self.statusSetCond(.Negative, (value -% m) & (0x80) != 0);
+    }
+
     fn lda(self: *CPU, mode: AddrMode) void {
         const value = self.memRead(self.get_op_addr(mode));
-
         self.a = value;
         self.update_zero_and_negative_flag(self.a);
+    }
+
+    fn ldx(self: *CPU, mode: AddrMode) void {
+        const value = self.memRead(self.get_op_addr(mode));
+        self.x = value;
+        self.update_zero_and_negative_flag(self.x);
+    }
+
+    fn ldy(self: *CPU, mode: AddrMode) void {
+        const value = self.memRead(self.get_op_addr(mode));
+        self.y = value;
+        self.update_zero_and_negative_flag(self.y);
     }
 
     fn sta(self: *CPU, mode: AddrMode) void {
@@ -701,6 +788,55 @@ test "CL*" {
     try expect(!cpu.statusHas(.Overflow));
 }
 
+test "CMP*" {
+    var cpu = CPU{};
+    // CMP (with a)
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, CMP_IMM, 0x68, BRK });
+    try expect(cpu.statusHas(.Carry));
+    try expect(!cpu.statusHas(.Zero));
+    try expect(!cpu.statusHas(.Negative));
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, CMP_IMM, 0x69, BRK });
+    try expect(cpu.statusHas(.Carry));
+    try expect(cpu.statusHas(.Zero));
+    try expect(!cpu.statusHas(.Negative));
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x01, CMP_IMM, 0x02, BRK });
+    try expect(!cpu.statusHas(.Carry));
+    try expect(!cpu.statusHas(.Zero));
+    try expect(cpu.statusHas(.Negative));
+
+    cpu.loadAndRun(&[_]u8{ LDX_IMM, 0x69, CPX_IMM, 0x68, BRK });
+    try expect(cpu.statusHas(.Carry));
+    try expect(!cpu.statusHas(.Zero));
+    try expect(!cpu.statusHas(.Negative));
+
+    cpu.loadAndRun(&[_]u8{ LDX_IMM, 0x69, CPX_IMM, 0x69, BRK });
+    try expect(cpu.statusHas(.Carry));
+    try expect(cpu.statusHas(.Zero));
+    try expect(!cpu.statusHas(.Negative));
+
+    cpu.loadAndRun(&[_]u8{ LDX_IMM, 0x01, CPX_IMM, 0x02, BRK });
+    try expect(!cpu.statusHas(.Carry));
+    try expect(!cpu.statusHas(.Zero));
+    try expect(cpu.statusHas(.Negative));
+
+    cpu.loadAndRun(&[_]u8{ LDY_IMM, 0x69, CPY_IMM, 0x68, BRK });
+    try expect(cpu.statusHas(.Carry));
+    try expect(!cpu.statusHas(.Zero));
+    try expect(!cpu.statusHas(.Negative));
+
+    cpu.loadAndRun(&[_]u8{ LDY_IMM, 0x69, CPY_IMM, 0x69, BRK });
+    try expect(cpu.statusHas(.Carry));
+    try expect(cpu.statusHas(.Zero));
+    try expect(!cpu.statusHas(.Negative));
+
+    cpu.loadAndRun(&[_]u8{ LDY_IMM, 0x01, CPY_IMM, 0x02, BRK });
+    try expect(!cpu.statusHas(.Carry));
+    try expect(!cpu.statusHas(.Zero));
+    try expect(cpu.statusHas(.Negative));
+}
+
 test "LDA immediate addressing" {
     var cpu = CPU{};
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, BRK });
@@ -735,6 +871,27 @@ test "LDA absolute X addressing" {
     cpu.memWrite(0x1234, 0x69);
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x04, TAX, LDA_ABSX, 0x30, 0x12, BRK });
     try expect(cpu.a == 0x69);
+}
+
+test "LDX and LDY" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDX_IMM, 0x69, BRK });
+    try expect(cpu.x == 0x69);
+
+    cpu.memWrite(0x42, 0x00);
+    try expect(!cpu.statusHas(.Zero));
+    cpu.loadAndRun(&[_]u8{ LDX_ZP, 0x42, BRK });
+    try expect(cpu.x == 0x00);
+    try expect(cpu.statusHas(.Zero));
+
+    cpu.loadAndRun(&[_]u8{ LDY_IMM, 0x69, BRK });
+    try expect(cpu.y == 0x69);
+
+    cpu.memWrite(0x42, 0x00);
+    try expect(!cpu.statusHas(.Zero));
+    cpu.loadAndRun(&[_]u8{ LDY_ZP, 0x42, BRK });
+    try expect(cpu.y == 0x00);
+    try expect(cpu.statusHas(.Zero));
 }
 
 test "SE*" {
