@@ -128,6 +128,16 @@ pub const CPY_IMM = 0xC0;
 pub const CPY_ZP = 0xC4;
 pub const CPY_ABS = 0xCC;
 
+// Opcode constants for DEC (Decrement Memory)
+pub const DEC_ZP = 0xC6;
+pub const DEC_ZPX = 0xD6;
+pub const DEC_ABS = 0xCE;
+pub const DEC_ABSX = 0xDE;
+
+// Opcode constants for DEX and DEY (Decrement X and Y Registers)
+pub const DEX_IMP = 0xCA;
+pub const DEY_IMP = 0x88;
+
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
 pub const LDA_ZPX = 0xB5;
@@ -226,6 +236,13 @@ const opCodes = [_]OpCode{
     .{ .code = CPY_IMM, .mnemonic = "CPY", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
     .{ .code = CPY_ZP, .mnemonic = "CPY", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
     .{ .code = CPY_ABS, .mnemonic = "CPY", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+
+    .{ .code = DEC_ZP, .mnemonic = "DEC", .len = 2, .cycles = 5, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = DEC_ZPX, .mnemonic = "DEC", .len = 2, .cycles = 6, .mode = .ZeroPageX, .cross_penalty = 0 },
+    .{ .code = DEC_ABS, .mnemonic = "DEC", .len = 3, .cycles = 6, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = DEC_ABSX, .mnemonic = "DEC", .len = 3, .cycles = 7, .mode = .AbsoluteX, .cross_penalty = 0 },
+    .{ .code = DEX_IMP, .mnemonic = "DEX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = DEY_IMP, .mnemonic = "DEY", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
     .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
@@ -387,6 +404,10 @@ const CPU = struct {
                 CPX_IMM, CPX_ZP, CPX_ABS => self.cmp(self.x, OpcodeMap.get(opcode).?.mode),
                 CPY_IMM, CPY_ZP, CPY_ABS => self.cmp(self.y, OpcodeMap.get(opcode).?.mode),
 
+                DEC_ZP, DEC_ZPX, DEC_ABS, DEC_ABSX => self.dec(OpcodeMap.get(opcode).?.mode),
+                DEX_IMP => self.dex(),
+                DEY_IMP => self.dey(),
+
                 INX => self.inx(),
 
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
@@ -490,6 +511,26 @@ const CPU = struct {
         self.statusSetCond(.Carry, value >= m);
         self.statusSetCond(.Zero, value == m);
         self.statusSetCond(.Negative, (value -% m) & (0x80) != 0);
+    }
+
+    fn dec(self: *CPU, mode: AddrMode) void {
+        const m_addr = self.get_op_addr(mode);
+        const m_value = self.memRead(m_addr);
+        const result = m_value -% 1;
+        self.update_zero_and_negative_flag(result);
+        self.memWrite(m_addr, result);
+    }
+
+    fn dex(self: *CPU) void {
+        const result = self.x -% 1;
+        self.update_zero_and_negative_flag(result);
+        self.x = result;
+    }
+
+    fn dey(self: *CPU) void {
+        const result = self.y -% 1;
+        self.update_zero_and_negative_flag(result);
+        self.y = result;
     }
 
     fn lda(self: *CPU, mode: AddrMode) void {
@@ -835,6 +876,31 @@ test "CMP*" {
     try expect(!cpu.statusHas(.Carry));
     try expect(!cpu.statusHas(.Zero));
     try expect(cpu.statusHas(.Negative));
+}
+
+test "DE[C,X,Y]" {
+    var cpu = CPU{};
+    cpu.memWrite(0x42, 70);
+    cpu.loadAndRun(&[_]u8{ DEC_ZP, 0x42, BRK });
+    try expect(cpu.memRead(0x42) == 69);
+
+    cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDX_IMM, 70, DEX_IMP, BRK });
+    try expect(cpu.x == 69);
+
+    try expect(!cpu.statusHas(.Zero));
+    cpu.loadAndRun(&[_]u8{ LDX_IMM, 1, DEX_IMP, BRK });
+    try expect(cpu.x == 0);
+    try expect(cpu.statusHas(.Zero));
+
+    cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDY_IMM, 70, DEY_IMP, BRK });
+    try expect(cpu.y == 69);
+
+    try expect(!cpu.statusHas(.Zero));
+    cpu.loadAndRun(&[_]u8{ LDY_IMM, 1, DEY_IMP, BRK });
+    try expect(cpu.y == 0);
+    try expect(cpu.statusHas(.Zero));
 }
 
 test "LDA immediate addressing" {
