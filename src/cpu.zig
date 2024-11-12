@@ -86,7 +86,7 @@ pub const AND_ABSY = 0x39;
 pub const AND_INDX = 0x21;
 pub const AND_INDY = 0x31;
 
-pub const ASL_IMP = 0x0A;
+pub const ASL = 0x0A;
 pub const ASL_ZP = 0x06;
 pub const ASL_ZPX = 0x16;
 pub const ASL_ABS = 0x0E;
@@ -135,8 +135,27 @@ pub const DEC_ABS = 0xCE;
 pub const DEC_ABSX = 0xDE;
 
 // Opcode constants for DEX and DEY (Decrement X and Y Registers)
-pub const DEX_IMP = 0xCA;
-pub const DEY_IMP = 0x88;
+pub const DEX = 0xCA;
+pub const DEY = 0x88;
+
+// ExclusiveOR
+pub const EOR_IMM = 0x49;
+pub const EOR_ZP = 0x45;
+pub const EOR_ZPX = 0x55;
+pub const EOR_ABS = 0x4D;
+pub const EOR_ABSX = 0x5D;
+pub const EOR_ABSY = 0x59;
+pub const EOR_INDX = 0x41;
+pub const EOR_INDY = 0x51;
+
+// INCrement
+pub const INC_ZP = 0xE6;
+pub const INC_ZPX = 0xF6;
+pub const INC_ABS = 0xEE;
+pub const INC_ABSX = 0xFE;
+
+pub const INX = 0xE8;
+pub const INY = 0xC8;
 
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
@@ -160,7 +179,6 @@ pub const LDY_ABS = 0xAC;
 pub const LDY_ABSX = 0xBC;
 
 pub const TAX = 0xAA;
-pub const INX = 0xE8;
 
 pub const SEC = 0x38; // SEt Carry Flag
 pub const SED = 0xF8; // SEt Decimal Flag
@@ -196,7 +214,7 @@ const opCodes = [_]OpCode{
     .{ .code = AND_INDX, .mnemonic = "AND", .len = 2, .cycles = 6, .mode = .IndirectX, .cross_penalty = 0 },
     .{ .code = AND_INDY, .mnemonic = "AND", .len = 2, .cycles = 5, .mode = .IndirectY, .cross_penalty = 1 },
 
-    .{ .code = ASL_IMP, .mnemonic = "ASL", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = ASL, .mnemonic = "ASL", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
     .{ .code = ASL_ZP, .mnemonic = "ASL", .len = 2, .cycles = 5, .mode = .ZeroPage, .cross_penalty = 0 },
     .{ .code = ASL_ZPX, .mnemonic = "ASL", .len = 2, .cycles = 6, .mode = .ZeroPageX, .cross_penalty = 0 },
     .{ .code = ASL_ABS, .mnemonic = "ASL", .len = 3, .cycles = 6, .mode = .Absolute, .cross_penalty = 0 },
@@ -241,10 +259,24 @@ const opCodes = [_]OpCode{
     .{ .code = DEC_ZPX, .mnemonic = "DEC", .len = 2, .cycles = 6, .mode = .ZeroPageX, .cross_penalty = 0 },
     .{ .code = DEC_ABS, .mnemonic = "DEC", .len = 3, .cycles = 6, .mode = .Absolute, .cross_penalty = 0 },
     .{ .code = DEC_ABSX, .mnemonic = "DEC", .len = 3, .cycles = 7, .mode = .AbsoluteX, .cross_penalty = 0 },
-    .{ .code = DEX_IMP, .mnemonic = "DEX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
-    .{ .code = DEY_IMP, .mnemonic = "DEY", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = DEX, .mnemonic = "DEX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = DEY, .mnemonic = "DEY", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
+    .{ .code = EOR_IMM, .mnemonic = "EOR", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
+    .{ .code = EOR_ZP, .mnemonic = "EOR", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = EOR_ZPX, .mnemonic = "EOR", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
+    .{ .code = EOR_ABS, .mnemonic = "EOR", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = EOR_ABSX, .mnemonic = "EOR", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
+    .{ .code = EOR_ABSY, .mnemonic = "EOR", .len = 3, .cycles = 4, .mode = .AbsoluteY, .cross_penalty = 1 },
+    .{ .code = EOR_INDX, .mnemonic = "EOR", .len = 2, .cycles = 6, .mode = .IndirectX, .cross_penalty = 0 },
+    .{ .code = EOR_INDY, .mnemonic = "EOR", .len = 2, .cycles = 5, .mode = .IndirectY, .cross_penalty = 1 },
+
+    .{ .code = INC_ZP, .mnemonic = "INC", .len = 2, .cycles = 5, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = INC_ZPX, .mnemonic = "INC", .len = 2, .cycles = 6, .mode = .ZeroPageX, .cross_penalty = 0 },
+    .{ .code = INC_ABS, .mnemonic = "INC", .len = 3, .cycles = 6, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = INC_ABSX, .mnemonic = "INC", .len = 3, .cycles = 7, .mode = .AbsoluteX, .cross_penalty = 0 },
     .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = INY, .mnemonic = "INY", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 
     .{ .code = LDA_ABS, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
     .{ .code = LDA_ABSX, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
@@ -381,8 +413,8 @@ const CPU = struct {
                 AND_IMM, AND_ZP, AND_ZPX, AND_ABS, AND_ABSX, AND_ABSY, AND_INDX, AND_INDY => {
                     self.and_(OpcodeMap.get(opcode).?.mode);
                 },
-                ASL_IMP, ASL_ZP, ASL_ZPX, ASL_ABS, ASL_ABSX => {
-                    _ = self.asl(OpcodeMap.get(opcode).?.mode, opcode == ASL_IMP);
+                ASL, ASL_ZP, ASL_ZPX, ASL_ABS, ASL_ABSX => {
+                    _ = self.asl(OpcodeMap.get(opcode).?.mode, opcode == ASL);
                 },
                 BCC => self.branch(!self.statusHas(.Carry)),
                 BCS => self.branch(self.statusHas(.Carry)),
@@ -405,10 +437,14 @@ const CPU = struct {
                 CPY_IMM, CPY_ZP, CPY_ABS => self.cmp(self.y, OpcodeMap.get(opcode).?.mode),
 
                 DEC_ZP, DEC_ZPX, DEC_ABS, DEC_ABSX => self.dec(OpcodeMap.get(opcode).?.mode),
-                DEX_IMP => self.dex(),
-                DEY_IMP => self.dey(),
+                DEX => self.dex(),
+                DEY => self.dey(),
 
+                EOR_IMM, EOR_ZP, EOR_ZPX, EOR_ABS, EOR_ABSX, EOR_ABSY, EOR_INDX, EOR_INDY => self.eor(OpcodeMap.get(opcode).?.mode),
+
+                INC_ZP, INC_ZPX, INC_ABS, INC_ABSX => self.inc(OpcodeMap.get(opcode).?.mode),
                 INX => self.inx(),
+                INY => self.iny(),
 
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
@@ -533,6 +569,30 @@ const CPU = struct {
         self.y = result;
     }
 
+    fn eor(self: *CPU, mode: AddrMode) void {
+        const result = self.a ^ self.memRead(self.get_op_addr(mode));
+        self.update_zero_and_negative_flag(result);
+        self.a = result;
+    }
+
+    fn inc(self: *CPU, mode: AddrMode) void {
+        const m_addr = self.get_op_addr(mode);
+        const m_value = self.memRead(m_addr);
+        const result = m_value +% 1;
+        self.update_zero_and_negative_flag(result);
+        self.memWrite(m_addr, result);
+    }
+
+    fn inx(self: *CPU) void {
+        self.x +%= 1;
+        self.update_zero_and_negative_flag(self.x);
+    }
+
+    fn iny(self: *CPU) void {
+        self.y +%= 1;
+        self.update_zero_and_negative_flag(self.y);
+    }
+
     fn lda(self: *CPU, mode: AddrMode) void {
         const value = self.memRead(self.get_op_addr(mode));
         self.a = value;
@@ -558,11 +618,6 @@ const CPU = struct {
 
     fn tax(self: *CPU) void {
         self.x = self.a;
-        self.update_zero_and_negative_flag(self.x);
-    }
-
-    fn inx(self: *CPU) void {
-        self.x +%= 1;
         self.update_zero_and_negative_flag(self.x);
     }
 
@@ -678,14 +733,14 @@ test "ASL" {
     var cpu = CPU{};
 
     // accumulator
-    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x55, ASL_IMP, BRK });
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x55, ASL, BRK });
     try expect(cpu.a == 0xAA); // 0b0101_0101 -> 0b1010_1010
     try expect(cpu.statusHas(.Negative) == true);
     try expect(cpu.statusHas(.Carry) == false);
     try expect(cpu.statusHas(.Zero) == false);
 
     // Test carry flag
-    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x80, ASL_IMP, BRK });
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x80, ASL, BRK });
     try expect(cpu.a == 0x00);
     try expect(cpu.statusHas(.Carry) == true);
     try expect(cpu.statusHas(.Zero) == true);
@@ -885,21 +940,33 @@ test "DE[C,X,Y]" {
     try expect(cpu.memRead(0x42) == 69);
 
     cpu = CPU{};
-    cpu.loadAndRun(&[_]u8{ LDX_IMM, 70, DEX_IMP, BRK });
+    cpu.loadAndRun(&[_]u8{ LDX_IMM, 70, DEX, BRK });
     try expect(cpu.x == 69);
 
     try expect(!cpu.statusHas(.Zero));
-    cpu.loadAndRun(&[_]u8{ LDX_IMM, 1, DEX_IMP, BRK });
+    cpu.loadAndRun(&[_]u8{ LDX_IMM, 1, DEX, BRK });
     try expect(cpu.x == 0);
     try expect(cpu.statusHas(.Zero));
 
     cpu = CPU{};
-    cpu.loadAndRun(&[_]u8{ LDY_IMM, 70, DEY_IMP, BRK });
+    cpu.loadAndRun(&[_]u8{ LDY_IMM, 70, DEY, BRK });
     try expect(cpu.y == 69);
 
     try expect(!cpu.statusHas(.Zero));
-    cpu.loadAndRun(&[_]u8{ LDY_IMM, 1, DEY_IMP, BRK });
+    cpu.loadAndRun(&[_]u8{ LDY_IMM, 1, DEY, BRK });
     try expect(cpu.y == 0);
+    try expect(cpu.statusHas(.Zero));
+}
+
+test "EOR" {
+    var cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0b1000_1111, EOR_IMM, 0b0000_1110, BRK });
+    try expect(cpu.statusHas(.Negative));
+    try expect(cpu.a == 0b1000_0001);
+    try expect(!cpu.statusHas(.Zero));
+
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0b1000_1111, EOR_IMM, 0b1000_1111, BRK });
+    try expect(!cpu.statusHas(.Negative));
     try expect(cpu.statusHas(.Zero));
 }
 
@@ -992,21 +1059,28 @@ test "STA absolute addressing" {
     try expect(cpu.memRead(0x1234) == 0x42);
 }
 
-test "Register instructions" {
-    // Test TAX
+test "IN[C,X,Y]" {
     var cpu = CPU{};
-    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, TAX, BRK });
+
+    // INC
+    cpu.memWrite(0x42, 0x68);
+    cpu.loadAndRun(&[_]u8{ INC_ZP, 0x42, BRK });
+    try expect(cpu.memRead(0x42) == 0x69);
+
+    // INX
+    cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDX_IMM, 0x68, INX, BRK });
     try expect(cpu.x == 0x69);
 
-    // Test INX
+    // INX overflow
     cpu = CPU{};
-    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x68, TAX, INX, BRK });
-    try expect(cpu.x == 0x69);
-
-    // Test INX overflow
-    cpu = CPU{};
-    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0xff, TAX, INX, INX, BRK });
+    cpu.loadAndRun(&[_]u8{ LDX_IMM, 0xff, INX, INX, BRK });
     try expect(cpu.x == 1);
+
+    // INY
+    cpu = CPU{};
+    cpu.loadAndRun(&[_]u8{ LDY_IMM, 0x68, INY, BRK });
+    try expect(cpu.y == 0x69);
 }
 
 test "Status flags" {
