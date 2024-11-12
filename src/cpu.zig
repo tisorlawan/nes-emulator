@@ -157,6 +157,12 @@ pub const INC_ABSX = 0xFE;
 pub const INX = 0xE8;
 pub const INY = 0xC8;
 
+// JuMP
+pub const JMP_ABS = 0x4C;
+pub const JMP_IND = 0x6C;
+
+// pub const JSR_ABS = 0x20;
+
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
 pub const LDA_ZPX = 0xB5;
@@ -277,6 +283,11 @@ const opCodes = [_]OpCode{
     .{ .code = INC_ABSX, .mnemonic = "INC", .len = 3, .cycles = 7, .mode = .AbsoluteX, .cross_penalty = 0 },
     .{ .code = INX, .mnemonic = "INX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
     .{ .code = INY, .mnemonic = "INY", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+
+    .{ .code = JMP_ABS, .mnemonic = "JMP", .len = 3, .cycles = 3, .mode = .None, .cross_penalty = 0 },
+    .{ .code = JMP_IND, .mnemonic = "JMP", .len = 3, .cycles = 5, .mode = .None, .cross_penalty = 0 },
+
+    // .{ .code = JSR_ABS, .mnemonic = "JSR", .len = 3, .cycles = 6, .mode = .Absolute, .cross_penalty = 0 },
 
     .{ .code = LDA_ABS, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
     .{ .code = LDA_ABSX, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
@@ -446,6 +457,9 @@ const CPU = struct {
                 INX => self.inx(),
                 INY => self.iny(),
 
+                JMP_ABS, JMP_IND => self.jmp(OpcodeMap.get(opcode).?.mode),
+                // JSR_ABS => self.jsr(),
+
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
                 },
@@ -591,6 +605,24 @@ const CPU = struct {
     fn iny(self: *CPU) void {
         self.y +%= 1;
         self.update_zero_and_negative_flag(self.y);
+    }
+
+    fn jmp(self: *CPU, mode: AddrMode) void {
+        const addr = self.memReadU16(self.pc);
+        if (mode == .Absolute) {
+            self.pc = addr;
+        } else {
+            // An original 6502 has does not correctly fetch the target address
+            // if the indirect vector falls on a page boundary (e.g. $xxFF where xx is any value from $00 to $FF).
+            // In this case fetches the LSB from $xxFF as expected but takes the MSB from $xx00.
+            if (addr & 0x00FF == 0x00FF) {
+                const lo = self.memRead(addr);
+                const hi = self.memRead(addr & 0xFF00);
+                self.pc = (@as(u16, hi) << 8) | @as(u16, lo);
+            } else {
+                self.pc = self.memReadU16(addr);
+            }
+        }
     }
 
     fn lda(self: *CPU, mode: AddrMode) void {
@@ -970,6 +1002,19 @@ test "EOR" {
     try expect(cpu.statusHas(.Zero));
 }
 
+test "JMP" {
+    var cpu = CPU{};
+    cpu.memWriteU16(0x1234, 0x8005);
+    cpu.loadAndRun(&.{ JMP_ABS, 0x34, 0x12, LDX_IMM, 0x42, LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x69);
+    try expect(cpu.x == 0);
+
+    cpu.memWriteU16(0x1234, 0x8003);
+    cpu.loadAndRun(&.{ JMP_ABS, 0x34, 0x12, LDX_IMM, 0x42, LDA_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x69);
+    try expect(cpu.x == 0x42);
+}
+
 test "LDA immediate addressing" {
     var cpu = CPU{};
     cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x69, BRK });
@@ -988,7 +1033,7 @@ test "LDA zero page addressing" {
 test "LDA zero page X addressing" {
     var cpu = CPU{};
     cpu.memWrite(0x42, 0x69);
-    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x02, TAX, LDA_ZPX, 0x40, BRK }); // 0x40 + 0x02 = 0x42
+    cpu.loadAndRun(&[_]u8{ LDA_IMM, 0x02, TAX, LDA_ZPX, 0x40, BRK });
     try expect(cpu.a == 0x69);
 }
 
