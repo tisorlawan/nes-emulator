@@ -161,7 +161,7 @@ pub const INY = 0xC8;
 pub const JMP_ABS = 0x4C;
 pub const JMP_IND = 0x6C;
 
-// pub const JSR_ABS = 0x20;
+pub const JSR = 0x20;
 
 // LoaD Accumulator
 pub const LDA_IMM = 0xA9;
@@ -187,12 +187,12 @@ pub const LDY_ZPX = 0xB4;
 pub const LDY_ABS = 0xAC;
 pub const LDY_ABSX = 0xBC;
 
-pub const TAX = 0xAA; // Transfer Accumulator to X
-
 pub const PHA = 0x48; // PusH Accumulator
 pub const PHP = 0x08; // PusH Processor Status
 pub const PLA = 0x68; // PulL Accumulator
 pub const PLP = 0x28; // PulL Processor Status
+
+pub const RTS = 0x60; // ReTurn from Subroutine
 
 pub const SEC = 0x38; // SEt Carry Flag
 pub const SED = 0xF8; // SEt Decimal Flag
@@ -206,6 +206,8 @@ pub const STA_ABSX = 0x9D;
 pub const STA_ABSY = 0x99;
 pub const STA_INDX = 0x81;
 pub const STA_INDY = 0x91;
+
+pub const TAX = 0xAA; // Transfer Accumulator to X
 
 const opCodes = [_]OpCode{
     .{ .code = BRK, .mnemonic = "BRK", .len = 1, .cycles = 7, .mode = .Implicit, .cross_penalty = 0 },
@@ -296,7 +298,7 @@ const opCodes = [_]OpCode{
     .{ .code = JMP_ABS, .mnemonic = "JMP", .len = 3, .cycles = 3, .mode = .None, .cross_penalty = 0 },
     .{ .code = JMP_IND, .mnemonic = "JMP", .len = 3, .cycles = 5, .mode = .None, .cross_penalty = 0 },
 
-    // .{ .code = JSR_ABS, .mnemonic = "JSR", .len = 3, .cycles = 6, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = JSR, .mnemonic = "JSR", .len = 3, .cycles = 6, .mode = .Absolute, .cross_penalty = 0 },
 
     .{ .code = LDA_ABS, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
     .{ .code = LDA_ABSX, .mnemonic = "LDA", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
@@ -319,6 +321,13 @@ const opCodes = [_]OpCode{
     .{ .code = LDY_ABS, .mnemonic = "LDY", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
     .{ .code = LDY_ABSX, .mnemonic = "LDY", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
 
+    .{ .code = PHA, .mnemonic = "PHA", .len = 1, .cycles = 3, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = PHP, .mnemonic = "PHP", .len = 1, .cycles = 3, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = PLA, .mnemonic = "PLA", .len = 1, .cycles = 4, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = PLP, .mnemonic = "PLP", .len = 1, .cycles = 4, .mode = .Implicit, .cross_penalty = 0 },
+
+    .{ .code = RTS, .mnemonic = "RTS", .len = 1, .cycles = 6, .mode = .Implicit, .cross_penalty = 0 },
+
     .{ .code = SEC, .mnemonic = "SEC", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
     .{ .code = SED, .mnemonic = "SED", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
     .{ .code = SEI, .mnemonic = "SEI", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
@@ -332,11 +341,6 @@ const opCodes = [_]OpCode{
     .{ .code = STA_ZPX, .mnemonic = "STA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
 
     .{ .code = TAX, .mnemonic = "TAX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
-
-    .{ .code = PHA, .mnemonic = "PHA", .len = 1, .cycles = 3, .mode = .Implicit, .cross_penalty = 0 },
-    .{ .code = PHP, .mnemonic = "PHP", .len = 1, .cycles = 3, .mode = .Implicit, .cross_penalty = 0 },
-    .{ .code = PLA, .mnemonic = "PLA", .len = 1, .cycles = 4, .mode = .Implicit, .cross_penalty = 0 },
-    .{ .code = PLP, .mnemonic = "PLP", .len = 1, .cycles = 4, .mode = .Implicit, .cross_penalty = 0 },
 };
 
 pub const OpcodeMap = struct {
@@ -435,9 +439,23 @@ const CPU = struct {
         self.sp -%= 1;
     }
 
+    pub fn push_u16(self: *CPU, data: u16) void {
+        const hi = @as(u8, @intCast(data >> 8));
+        const lo = @as(u8, @intCast(data & 0xFF));
+        self.push(hi);
+        self.push(lo);
+    }
+
     pub fn pull(self: *CPU) u8 {
         self.sp +%= 1;
         return self.memory[STACK_START + @as(u16, self.sp)];
+    }
+
+    pub fn pull_u16(self: *CPU) u16 {
+        const lo = @as(u16, self.pull());
+        const hi = @as(u16, self.pull());
+
+        return (hi << 8) | lo;
     }
 
     pub fn run(self: *CPU) void {
@@ -488,7 +506,7 @@ const CPU = struct {
                 INY => self.iny(),
 
                 JMP_ABS, JMP_IND => self.jmp(OpcodeMap.get(opcode).?.mode),
-                // JSR_ABS => self.jsr(),
+                JSR => self.jsr(),
 
                 LDA_IMM, LDA_ZP, LDA_ZPX, LDA_ABS, LDA_ABSX, LDA_ABSY, LDA_INDX, LDA_INDY => {
                     self.lda(OpcodeMap.get(opcode).?.mode);
@@ -502,6 +520,8 @@ const CPU = struct {
                 PHP => self.php(),
                 PLA => self.pla(),
                 PLP => self.plp(),
+
+                RTS => self.rts(),
 
                 SEC => self.statusSet(.Carry),
                 SED => self.statusSet(.DecimalMode),
@@ -663,6 +683,11 @@ const CPU = struct {
         }
     }
 
+    fn jsr(self: *CPU) void {
+        self.push_u16(self.pc + 2 - 1);
+        self.pc = self.get_op_addr(.Absolute);
+    }
+
     fn lda(self: *CPU, mode: AddrMode) void {
         const value = self.memRead(self.get_op_addr(mode));
         self.a = value;
@@ -699,6 +724,10 @@ const CPU = struct {
         self.status = self.pull();
         self.statusClear(.Break);
         self.statusSet(.Break2);
+    }
+
+    fn rts(self: *CPU) void {
+        self.pc = self.pull_u16() + 1;
     }
 
     fn sta(self: *CPU, mode: AddrMode) void {
@@ -1128,6 +1157,45 @@ test "LDX and LDY" {
     cpu.loadAndRun(&[_]u8{ LDY_ZP, 0x42, BRK });
     try expect(cpu.y == 0x00);
     try expect(cpu.statusHas(.Zero));
+}
+
+test "JSR, RTS" {
+    var cpu = CPU{};
+
+    cpu.memWrite(0x2000, LDA_IMM);
+    cpu.memWrite(0x2001, 0x42);
+    cpu.memWrite(0x2002, RTS);
+
+    cpu.loadAndRun(&.{ JSR, 0x00, 0x20, LDX_IMM, 0x69, BRK });
+    try expect(cpu.a == 0x42); // Verify subroutine executed
+    try expect(cpu.x == 0x69); // Stack pointer restored
+    try expect(cpu.sp == 0xFF); // Stack pointer restored
+
+    // Nested
+    cpu.memWrite(0x2000, JSR); // First subroutine
+    cpu.memWrite(0x2001, 0x10); // calls second subroutine
+    cpu.memWrite(0x2002, 0x20); // at $2010
+    cpu.memWrite(0x2003, RTS); // then returns to main program
+
+    cpu.memWrite(0x2010, LDA_IMM); // Second subroutine
+    cpu.memWrite(0x2011, 0x42); // loads 0x42
+    cpu.memWrite(0x2012, RTS); // returns to first subroutine
+
+    cpu.loadAndRun(&.{ JSR, 0x00, 0x20, BRK });
+    try expect(cpu.a == 0x42);
+    try expect(cpu.sp == 0xFF);
+
+    // Test JSR/RTS with stack operations
+    cpu.memWrite(0x2000, PHA); // Subroutine that
+    cpu.memWrite(0x2001, LDA_IMM); // saves A,
+    cpu.memWrite(0x2002, 0x42); // loads 0x42,
+    cpu.memWrite(0x2003, PLA); // restores A
+    cpu.memWrite(0x2004, RTS); // and returns
+
+    cpu.loadAndRun(&.{ LDA_IMM, 0x69, JSR, 0x00, 0x20, BRK });
+    try expect(cpu.a == 0x69); // Verify A was preserved
+    try expect(cpu.sp == 0xFF); // Stack pointer restored
+
 }
 
 test "SE*" {
