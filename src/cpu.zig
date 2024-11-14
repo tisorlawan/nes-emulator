@@ -163,6 +163,7 @@ pub const JMP_IND = 0x6C;
 
 // pub const JSR_ABS = 0x20;
 
+// LoaD Accumulator
 pub const LDA_IMM = 0xA9;
 pub const LDA_ZP = 0xA5;
 pub const LDA_ZPX = 0xB5;
@@ -172,24 +173,32 @@ pub const LDA_ABSY = 0xB9;
 pub const LDA_INDX = 0xA1;
 pub const LDA_INDY = 0xB1;
 
+// LoaD X Register
 pub const LDX_IMM = 0xA2;
 pub const LDX_ZP = 0xA6;
 pub const LDX_ZPY = 0xB6;
 pub const LDX_ABS = 0xAE;
 pub const LDX_ABSY = 0xBE;
 
+// LoaD Y Register
 pub const LDY_IMM = 0xA0;
 pub const LDY_ZP = 0xA4;
 pub const LDY_ZPX = 0xB4;
 pub const LDY_ABS = 0xAC;
 pub const LDY_ABSX = 0xBC;
 
-pub const TAX = 0xAA;
+pub const TAX = 0xAA; // Transfer Accumulator to X
+
+pub const PHA = 0x48; // PusH Accumulator
+pub const PHP = 0x08; // PusH Processor Status
+pub const PLA = 0x68; // PulL Accumulator
+pub const PLP = 0x28; // PulL Processor Status
 
 pub const SEC = 0x38; // SEt Carry Flag
 pub const SED = 0xF8; // SEt Decimal Flag
 pub const SEI = 0x78; // SEt Interrupt Disable Flag
 
+// STore Accumulator
 pub const STA_ZP = 0x85;
 pub const STA_ZPX = 0x95;
 pub const STA_ABS = 0x8D;
@@ -323,6 +332,11 @@ const opCodes = [_]OpCode{
     .{ .code = STA_ZPX, .mnemonic = "STA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
 
     .{ .code = TAX, .mnemonic = "TAX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+
+    .{ .code = PHA, .mnemonic = "PHA", .len = 1, .cycles = 3, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = PHP, .mnemonic = "PHP", .len = 1, .cycles = 3, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = PLA, .mnemonic = "PLA", .len = 1, .cycles = 4, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = PLP, .mnemonic = "PLP", .len = 1, .cycles = 4, .mode = .Implicit, .cross_penalty = 0 },
 };
 
 pub const OpcodeMap = struct {
@@ -340,15 +354,21 @@ pub const OpcodeMap = struct {
 };
 
 const CPU = struct {
+    memory: [0xFFFF]u8 = .{0} ** 0xFFFF,
+    status: u8 = 0,
+    pc: u16 = 0,
+
+    // registers
     a: u8 = 0,
     x: u8 = 0,
     y: u8 = 0,
-    status: u8 = 0,
-    pc: u16 = 0,
-    memory: [0xFFFF]u8 = .{0} ** 0xFFFF,
+
+    // stack related
+    sp: u8 = 0xFF,
 
     const PROG_ROM_START_ADDR = 0x8000;
     const ADDR_START = 0xFFFC;
+    const STACK_START: u16 = 0x0100;
 
     fn memRead(self: *CPU, addr: u16) u8 {
         return self.memory[addr];
@@ -410,6 +430,16 @@ const CPU = struct {
         }
     }
 
+    pub fn push(self: *CPU, data: u8) void {
+        self.memory[STACK_START + @as(u16, self.sp)] = data;
+        self.sp -%= 1;
+    }
+
+    pub fn pull(self: *CPU) u8 {
+        self.sp +%= 1;
+        return self.memory[STACK_START + @as(u16, self.sp)];
+    }
+
     pub fn run(self: *CPU) void {
         while (true) {
             const opcode = self.memRead(self.pc);
@@ -467,12 +497,20 @@ const CPU = struct {
                 LDY_IMM, LDY_ZP, LDY_ZPX, LDY_ABS, LDY_ABSX => self.ldy(OpcodeMap.get(opcode).?.mode),
 
                 NOP => {},
+
+                PHA => self.pha(),
+                PHP => self.php(),
+                PLA => self.pla(),
+                PLP => self.plp(),
+
                 SEC => self.statusSet(.Carry),
                 SED => self.statusSet(.DecimalMode),
                 SEI => self.statusSet(.InterruptDisable),
+
                 STA_ZP, STA_ZPX, STA_ABS, STA_ABSX, STA_ABSY, STA_INDX, STA_INDY => {
                     self.sta(OpcodeMap.get(opcode).?.mode);
                 },
+
                 TAX => self.tax(),
                 else => unreachable,
             }
@@ -641,6 +679,26 @@ const CPU = struct {
         const value = self.memRead(self.get_op_addr(mode));
         self.y = value;
         self.update_zero_and_negative_flag(self.y);
+    }
+
+    fn pha(self: *CPU) void {
+        self.push(self.a);
+    }
+
+    fn php(self: *CPU) void {
+        //http://wiki.nesdev.com/w/index.php/CPU_status_flag_behavior
+        self.push(self.status | 0b0011_0000);
+    }
+
+    fn pla(self: *CPU) void {
+        self.a = self.pull();
+        self.update_zero_and_negative_flag(self.a);
+    }
+
+    fn plp(self: *CPU) void {
+        self.status = self.pull();
+        self.statusClear(.Break);
+        self.statusSet(.Break2);
     }
 
     fn sta(self: *CPU, mode: AddrMode) void {
@@ -1090,6 +1148,34 @@ test "SE*" {
     try expect(!cpu.statusHas(.InterruptDisable));
     cpu.loadAndRun(&[_]u8{ SEI, BRK });
     try expect(cpu.statusHas(.InterruptDisable));
+}
+
+test "PHA, PLA" {
+    var cpu = CPU{};
+
+    cpu.loadAndRun(&.{ LDA_IMM, 0x69, PHA, BRK });
+    try expect(cpu.pull() == 0x69);
+
+    cpu.loadAndRun(&.{ LDA_IMM, 0x69, PHA, LDA_IMM, 0x00, BRK });
+    try expect(cpu.a == 0x00);
+
+    cpu.loadAndRun(&.{ LDA_IMM, 0x69, PHA, LDA_IMM, 0x00, PLA, BRK });
+    try expect(cpu.a == 0x69);
+}
+
+test "PHP, PLP" {
+    var cpu = CPU{};
+
+    try expect(!cpu.statusHas(.Negative));
+    cpu.loadAndRun(&.{ LDA_IMM, 0b1111_1111, PHP, BRK });
+    try expect(cpu.statusHas(.Negative));
+    try expect(!cpu.statusHas(.Break));
+    try expect(!cpu.statusHas(.Break2));
+
+    cpu.loadAndRun(&.{ LDA_IMM, 0b1111_1111, PHP, PLP, BRK });
+    try expect(cpu.statusHas(.Negative));
+    try expect(!cpu.statusHas(.Break));
+    try expect(cpu.statusHas(.Break2));
 }
 
 test "STA zero page addressing" {
