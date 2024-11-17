@@ -1,25 +1,57 @@
 const std = @import("std");
 const print = std.debug.print;
 
+const c = @cImport({
+    @cInclude("SDL2/SDL.h");
+});
+
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    print("All your {s} are belong to us.\n", .{"codebase"});
+    if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
+        print("SDL2 initialization failed: {s}\n", .{c.SDL_GetError()});
+        return error.SDLInitializationFailed;
+    }
+    defer c.SDL_Quit();
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    const window = c.SDL_CreateWindow(
+        "My SDL Window",
+        c.SDL_WINDOWPOS_CENTERED,
+        c.SDL_WINDOWPOS_CENTERED,
+        800,
+        600,
+        c.SDL_WINDOW_SHOWN,
+    ) orelse {
+        print("Failed to create window: {s}\n", .{c.SDL_GetError()});
+        return error.SDLWindowCreationFailed;
+    };
+    defer c.SDL_DestroyWindow(window);
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    const renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED) orelse {
+        print("Failed to create renderer: {s}\n", .{c.SDL_GetError()});
+        return error.SDLRendererCreationFailed;
+    };
+    defer c.SDL_DestroyRenderer(renderer);
 
-    try bw.flush(); // don't forget to flush!
-}
+    // Loop
+    mainLoop: while (true) {
+        var event: c.SDL_Event = undefined;
+        while (c.SDL_PollEvent(&event) != 0) {
+            switch (event.type) {
+                c.SDL_QUIT => break :mainLoop,
+                c.SDL_KEYDOWN => {
+                    if (event.key.keysym.scancode == c.SDL_SCANCODE_Q) {
+                        break :mainLoop;
+                    }
+                },
+                else => {},
+            }
+        }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+        _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        _ = c.SDL_RenderClear(renderer);
+
+        c.SDL_RenderPresent(renderer);
+
+        // Small delay to prevent maxing out CPU
+        c.SDL_Delay(16); // roughly 60 FPS
+    }
 }

@@ -19,6 +19,16 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    const sdl_dep = b.lazyDependency("sdl", .{
+        .optimize = .ReleaseSafe,
+        .target = target,
+    });
+
+    if (sdl_dep) |sdl| {
+        exe.linkLibrary(sdl.artifact("SDL2"));
+    }
+
     b.installArtifact(exe);
 
     // This *creates* a Run step in the build graph, to be executed when another
