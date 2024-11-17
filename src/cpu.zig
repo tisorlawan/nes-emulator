@@ -228,6 +228,15 @@ pub const RTI = 0x40;
 
 pub const RTS = 0x60; // ReTurn from Subroutine
 
+pub const SBC_IMM = 0xE9;
+pub const SBC_ZP = 0xE5;
+pub const SBC_ZPX = 0xF5;
+pub const SBC_ABS = 0xED;
+pub const SBC_ABSX = 0xFD;
+pub const SBC_ABSY = 0xF9;
+pub const SBC_INDX = 0xE1;
+pub const SBC_INDY = 0xF1;
+
 pub const SEC = 0x38; // SEt Carry Flag
 pub const SED = 0xF8; // SEt Decimal Flag
 pub const SEI = 0x78; // SEt Interrupt Disable Flag
@@ -390,6 +399,15 @@ const opCodes = [_]OpCode{
     .{ .code = RTI, .mnemonic = "RTI", .len = 1, .cycles = 6, .mode = .Implicit, .cross_penalty = 0 },
 
     .{ .code = RTS, .mnemonic = "RTS", .len = 1, .cycles = 6, .mode = .Implicit, .cross_penalty = 0 },
+
+    .{ .code = SBC_IMM, .mnemonic = "SBC", .len = 2, .cycles = 2, .mode = .Immediate, .cross_penalty = 0 },
+    .{ .code = SBC_ZP, .mnemonic = "SBC", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = SBC_ZPX, .mnemonic = "SBC", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
+    .{ .code = SBC_ABS, .mnemonic = "SBC", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+    .{ .code = SBC_ABSX, .mnemonic = "SBC", .len = 3, .cycles = 4, .mode = .AbsoluteX, .cross_penalty = 1 },
+    .{ .code = SBC_ABSY, .mnemonic = "SBC", .len = 3, .cycles = 4, .mode = .AbsoluteY, .cross_penalty = 1 },
+    .{ .code = SBC_INDX, .mnemonic = "SBC", .len = 2, .cycles = 6, .mode = .IndirectX, .cross_penalty = 0 },
+    .{ .code = SBC_INDY, .mnemonic = "SBC", .len = 2, .cycles = 5, .mode = .IndirectY, .cross_penalty = 1 },
 
     .{ .code = SEC, .mnemonic = "SEC", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
     .{ .code = SED, .mnemonic = "SED", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
@@ -596,6 +614,8 @@ const CPU = struct {
 
                 RTS => self.rts(),
 
+                SBC_IMM, SBC_ZP, SBC_ZPX, SBC_ABS, SBC_ABSX, SBC_ABSY, SBC_INDX, SBC_INDY => self.sbc(OpcodeMap.get(opcode).?.mode),
+
                 SEC => self.statusSet(.Carry),
                 SED => self.statusSet(.DecimalMode),
                 SEI => self.statusSet(.InterruptDisable),
@@ -617,7 +637,7 @@ const CPU = struct {
     fn adc(self: *CPU, mode: AddrMode) void {
         const value = self.memRead(self.get_op_addr(mode));
         const carry_in = self.status & 0b0000_0001;
-        const result: u16 = @as(u16, value) + @as(u16, self.a) + carry_in;
+        const result: u16 = @as(u16, value) +% @as(u16, self.a) +% carry_in;
 
         // Carry
         if (result > 0xFF) {
@@ -631,13 +651,10 @@ const CPU = struct {
         // - both operands are negative but the result is positive
         const a_sign = (self.a & 0x80) != 0;
         const m_sign = (value & 0x80) != 0;
-        const r_sign = (result & 0x80) != 0;
+        const r_sign = (@as(u8, @truncate(result)) & 0x80) != 0;
 
-        if ((a_sign == m_sign) and (a_sign != r_sign)) {
-            self.statusSet(.Overflow);
-        } else {
-            self.statusClear(.Overflow);
-        }
+        const isOverflow = (a_sign == m_sign) and (a_sign != r_sign);
+        self.statusSetCond(.Overflow, isOverflow);
 
         self.a = @truncate(result);
         self.update_zero_and_negative_flag(self.a);
@@ -887,6 +904,30 @@ const CPU = struct {
 
     fn rts(self: *CPU) void {
         self.pc = self.pull_u16() + 1;
+    }
+
+    fn sbc(self: *CPU, mode: AddrMode) void {
+        const value = self.memRead(self.get_op_addr(mode));
+        const carry_in = (self.status & 0b0000_0001);
+        const result: u16 = @as(u16, self.a) -% @as(u16, value) -% 1 +% carry_in;
+
+        // Carry flag is set if no borrow was required
+        // In other words, carry is set if result >= 0
+        self.statusSetCond(.Carry, result < 0x100);
+
+        // Overflow occurs when:
+        // - Subtracting a negative number from a positive number gives a negative result
+        // - Subtracting a positive number from a negative number gives a positive result
+        // * the result sign is different from the first operand
+        const a_sign = (self.a & 0x80) != 0;
+        const m_sign = (value & 0x80) != 0;
+        const r_sign = (@as(u8, @truncate(result)) & 0x80) != 0;
+
+        const isOverflow = (a_sign != m_sign) and (a_sign != r_sign);
+        self.statusSetCond(.Overflow, isOverflow);
+
+        self.a = @truncate(result);
+        self.update_zero_and_negative_flag(self.a);
     }
 
     fn sta(self: *CPU, mode: AddrMode) void {
@@ -1211,7 +1252,7 @@ test "CMP*" {
     try expect(cpu.statusHas(.Negative));
 }
 
-test "DE[C,X,Y]" {
+test "DEC,DEX,DEY" {
     var cpu = CPU{};
     cpu.memWrite(0x42, 70);
     cpu.loadAndRun(&.{ DEC_ZP, 0x42, BRK });
@@ -1409,10 +1450,46 @@ test "JSR, RTS" {
     cpu.loadAndRun(&.{ LDA_IMM, 0x69, JSR, 0x00, 0x20, BRK });
     try expect(cpu.a == 0x69); // Verify A was preserved
     try expect(cpu.sp == 0xFF); // Stack pointer restored
-
 }
 
-test "SE*" {
+test "SBC" {
+    var cpu = CPU{};
+
+    cpu.loadAndRun(&.{ LDA_IMM, 0x50, SEC, SBC_IMM, 0x20, BRK });
+    try expect(cpu.a == 0x30);
+    try expect(cpu.statusHas(.Negative) == false);
+    try expect(cpu.statusHas(.Zero) == false);
+    try expect(cpu.statusHas(.Overflow) == false);
+    try expect(cpu.statusHas(.Carry) == true); // No borrow needed
+
+    cpu.loadAndRun(&.{ LDA_IMM, 0x50, SEC, SBC_IMM, 0x50, BRK });
+    try expect(cpu.a == 0x00);
+    try expect(cpu.statusHas(.Zero) == true);
+    try expect(cpu.statusHas(.Carry) == true);
+
+    cpu.loadAndRun(&.{ LDA_IMM, 0x50, CLC, SBC_IMM, 0x20, BRK });
+    try expect(cpu.a == 0x2F); // 0x50 - 0x20 - 1
+    try expect(cpu.statusHas(.Carry) == true);
+
+    cpu.loadAndRun(&.{ LDA_IMM, 0x20, SEC, SBC_IMM, 0x50, BRK });
+    try expect(cpu.a == 0xD0); // 0x20 - 0x50 = -48 (0xD0)
+    try expect(cpu.statusHas(.Negative) == true);
+    try expect(cpu.statusHas(.Carry) == false); // Borrow needed
+
+    // Overflow case (positive - negative = negative)
+    cpu.loadAndRun(&.{ LDA_IMM, 0x50, SEC, SBC_IMM, 0xB0, BRK });
+    try expect(cpu.a == 0xA0);
+    try expect(cpu.statusHas(.Overflow) == true);
+    try expect(cpu.statusHas(.Negative) == true);
+
+    // Zero page + X
+    cpu.memWrite(0x42, 0x20);
+    cpu.loadAndRun(&.{ LDA_IMM, 0x10, TAX, LDA_IMM, 0x50, SEC, SBC_ZPX, 0x32, BRK });
+    try expect(cpu.a == 0x30);
+    try expect(cpu.statusHas(.Carry) == true);
+}
+
+test "SEC, SED, SEI" {
     // SEC
     var cpu = CPU{};
     try expect(!cpu.statusHas(.Carry));
