@@ -524,6 +524,7 @@ const CPU = struct {
     pub fn run(self: *CPU) void {
         while (true) {
             const opcode = self.memRead(self.pc);
+            // std.debug.print("0x{x} {s}\n", .{ self.pc, OpcodeMap.get(opcode).?.mnemonic });
             self.pc += 1;
 
             const initial_pc = self.pc;
@@ -591,7 +592,7 @@ const CPU = struct {
                 ROL, ROL_ZP, ROL_ZPX, ROL_ABS, ROL_ABSX => self.rol(OpcodeMap.get(opcode).?.mode),
                 ROR, ROR_ZP, ROR_ZPX, ROR_ABS, ROR_ABSX => self.ror(OpcodeMap.get(opcode).?.mode),
 
-                // RTI => self.rti(),
+                RTI => self.rti(),
 
                 RTS => self.rts(),
 
@@ -877,8 +878,12 @@ const CPU = struct {
         }
     }
 
-    // fn rti(self: *CPU) void {
-    // }
+    fn rti(self: *CPU) void {
+        self.status = self.pull();
+        self.statusSet(.Break2);
+        self.statusClear(.Break);
+        self.pc = self.pull_u16();
+    }
 
     fn rts(self: *CPU) void {
         self.pc = self.pull_u16() + 1;
@@ -1325,6 +1330,47 @@ test "ORA" {
     cpu.loadAndRun(&.{ LDA_IMM, 0b0000_0000, ORA_IMM, 0b1010_1010, BRK });
     try expect(cpu.a == 0b1010_1010);
     try expect(cpu.statusHas(.Negative));
+}
+
+test "RTI" {
+    var cpu = CPU{};
+
+    const program = [_]u8{
+        SEC, // Set Carry flag
+        SEI, // Set Interrupt disable flag
+
+        // Push return address (0x8010 - address of next instruction after RTI)
+        LDA_IMM, 0x80, // High byte
+        PHA,
+        LDA_IMM, 0x13, // Low byte
+        PHA,
+        PLA, // Restore A
+
+        // Manually push status and return address (mimicking an interrupt)
+        PHA, // Preserve A since we'll use it
+        LDA_IMM, 0b1100_0011, // Load status value into A (N=1, V=1, C=1, Z=1)
+        PHA, // Push status
+
+        RTI,
+
+        // Should skip these bytes due to RTI jump
+        0x00,
+        0x00,
+        0x00,
+        LDA_IMM,
+        0x69,
+
+        BRK,
+    };
+
+    cpu.loadAndRun(&program);
+
+    try expect(!cpu.statusHas(.Break));
+    try expect(cpu.statusHas(.Break2));
+    try expect(cpu.statusHas(.Negative));
+    try expect(cpu.statusHas(.Overflow));
+    try expect(cpu.statusHas(.Zero));
+    try expect(cpu.statusHas(.Carry));
 }
 
 test "JSR, RTS" {

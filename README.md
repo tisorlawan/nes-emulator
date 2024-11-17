@@ -2,6 +2,7 @@ Writing NES emulator because ... why not. Not everything has to have a goddamn r
 Written in Zig.
 
 ## References
+https://github.com/bugzmanov/nes_ebook/blob/master/code/ch3.3/src/cpu.rs
 
 I use all of these resources below.
 
