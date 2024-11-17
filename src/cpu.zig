@@ -250,7 +250,22 @@ pub const STA_ABSY = 0x99;
 pub const STA_INDX = 0x81;
 pub const STA_INDY = 0x91;
 
-pub const TAX = 0xAA; // Transfer Accumulator to X
+// STore X Register
+pub const STX_ZP = 0x86;
+pub const STX_ZPY = 0x96;
+pub const STX_ABS = 0x8E;
+
+// STore Y Register
+pub const STY_ZP = 0x84;
+pub const STY_ZPX = 0x94;
+pub const STY_ABS = 0x8C;
+
+pub const TAX = 0xAA; // Transfer A to X
+pub const TAY = 0xA8; // Transfer A to Y
+pub const TSX = 0xBA; // Transfer Stack pointer to X
+pub const TXA = 0x8A; // Transfer X to A
+pub const TXS = 0x9A; // Transfer X to Stack pointer
+pub const TYA = 0x98; // Transfer Y to A
 
 const opCodes = [_]OpCode{
     .{ .code = BRK, .mnemonic = "BRK", .len = 1, .cycles = 7, .mode = .Implicit, .cross_penalty = 0 },
@@ -421,7 +436,20 @@ const opCodes = [_]OpCode{
     .{ .code = STA_ZP, .mnemonic = "STA", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
     .{ .code = STA_ZPX, .mnemonic = "STA", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
 
+    .{ .code = STX_ZP, .mnemonic = "STX", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = STX_ZPY, .mnemonic = "STX", .len = 2, .cycles = 4, .mode = .ZeroPageY, .cross_penalty = 0 },
+    .{ .code = STX_ABS, .mnemonic = "STX", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+
+    .{ .code = STY_ZP, .mnemonic = "STY", .len = 2, .cycles = 3, .mode = .ZeroPage, .cross_penalty = 0 },
+    .{ .code = STY_ZPX, .mnemonic = "STY", .len = 2, .cycles = 4, .mode = .ZeroPageX, .cross_penalty = 0 },
+    .{ .code = STY_ABS, .mnemonic = "STY", .len = 3, .cycles = 4, .mode = .Absolute, .cross_penalty = 0 },
+
     .{ .code = TAX, .mnemonic = "TAX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = TAY, .mnemonic = "TAY", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = TXS, .mnemonic = "TXS", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = TXA, .mnemonic = "TXA", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = TSX, .mnemonic = "TSX", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
+    .{ .code = TYA, .mnemonic = "TYA", .len = 1, .cycles = 2, .mode = .Implicit, .cross_penalty = 0 },
 };
 
 pub const OpcodeMap = struct {
@@ -623,8 +651,16 @@ const CPU = struct {
                 STA_ZP, STA_ZPX, STA_ABS, STA_ABSX, STA_ABSY, STA_INDX, STA_INDY => {
                     self.sta(OpcodeMap.get(opcode).?.mode);
                 },
+                STX_ZP, STX_ZPY, STX_ABS => self.stx(OpcodeMap.get(opcode).?.mode),
+                STY_ZP, STY_ZPX, STY_ABS => self.sty(OpcodeMap.get(opcode).?.mode),
 
                 TAX => self.tax(),
+                TAY => self.tay(),
+                TSX => self.tsx(),
+                TXA => self.txa(),
+                TXS => self.txs(),
+                TYA => self.tya(),
+
                 else => unreachable,
             }
 
@@ -935,9 +971,43 @@ const CPU = struct {
         self.memWrite(addr, self.a);
     }
 
+    fn stx(self: *CPU, mode: AddrMode) void {
+        const addr = self.get_op_addr(mode);
+        self.memWrite(addr, self.x);
+    }
+
+    fn sty(self: *CPU, mode: AddrMode) void {
+        const addr = self.get_op_addr(mode);
+        self.memWrite(addr, self.y);
+    }
+
     fn tax(self: *CPU) void {
         self.x = self.a;
         self.update_zero_and_negative_flag(self.x);
+    }
+
+    fn tay(self: *CPU) void {
+        self.y = self.a;
+        self.update_zero_and_negative_flag(self.y);
+    }
+
+    fn tsx(self: *CPU) void {
+        self.x = self.sp;
+        self.update_zero_and_negative_flag(self.x);
+    }
+
+    fn txa(self: *CPU) void {
+        self.a = self.x;
+        self.update_zero_and_negative_flag(self.a);
+    }
+
+    fn txs(self: *CPU) void {
+        self.sp = self.x;
+    }
+
+    fn tya(self: *CPU) void {
+        self.a = self.y;
+        self.update_zero_and_negative_flag(self.a);
     }
 
     fn get_op_addr(self: *CPU, addrMode: AddrMode) u16 {
@@ -1289,6 +1359,30 @@ test "EOR" {
     try expect(cpu.statusHas(.Zero));
 }
 
+test "INC, INX, INY" {
+    var cpu = CPU{};
+
+    // INC
+    cpu.memWrite(0x42, 0x68);
+    cpu.loadAndRun(&.{ INC_ZP, 0x42, BRK });
+    try expect(cpu.memRead(0x42) == 0x69);
+
+    // INX
+    cpu = CPU{};
+    cpu.loadAndRun(&.{ LDX_IMM, 0x68, INX, BRK });
+    try expect(cpu.x == 0x69);
+
+    // INX overflow
+    cpu = CPU{};
+    cpu.loadAndRun(&.{ LDX_IMM, 0xff, INX, INX, BRK });
+    try expect(cpu.x == 1);
+
+    // INY
+    cpu = CPU{};
+    cpu.loadAndRun(&.{ LDY_IMM, 0x68, INY, BRK });
+    try expect(cpu.y == 0x69);
+}
+
 test "JMP" {
     var cpu = CPU{};
     cpu.memWriteU16(0x1234, 0x8005);
@@ -1559,40 +1653,47 @@ test "ROL, ROR" {
     try expect(!cpu.statusHas(.Carry));
 }
 
-test "STA zero page addressing" {
+test "STA, STX, STY" {
     var cpu = CPU{};
     cpu.loadAndRun(&.{ LDA_IMM, 0x42, STA_ZP, 0x15, BRK });
     try expect(cpu.memRead(0x15) == 0x42);
-}
 
-test "STA absolute addressing" {
-    var cpu = CPU{};
+    cpu = CPU{};
     cpu.loadAndRun(&.{ LDA_IMM, 0x42, STA_ABS, 0x34, 0x12, BRK });
+    try expect(cpu.memRead(0x1234) == 0x42);
+
+    cpu = CPU{};
+    // cpu.memWrite(0x69, 0x1234);
+
+    cpu.loadAndRun(&.{ LDX_IMM, 0x42, STX_ZP, 0x12, BRK });
+    try expect(cpu.memRead(0x12) == 0x42);
+
+    cpu.loadAndRun(&.{ LDX_IMM, 0x42, STX_ABS, 0x34, 0x12, BRK });
+    try expect(cpu.memRead(0x1234) == 0x42);
+
+    cpu.loadAndRun(&.{ LDY_IMM, 0x42, STY_ZP, 0x12, BRK });
+    try expect(cpu.memRead(0x12) == 0x42);
+
+    cpu.loadAndRun(&.{ LDY_IMM, 0x42, STY_ABS, 0x34, 0x12, BRK });
     try expect(cpu.memRead(0x1234) == 0x42);
 }
 
-test "IN[C,X,Y]" {
+test "TAX" {
     var cpu = CPU{};
 
-    // INC
-    cpu.memWrite(0x42, 0x68);
-    cpu.loadAndRun(&.{ INC_ZP, 0x42, BRK });
-    try expect(cpu.memRead(0x42) == 0x69);
+    cpu.loadAndRun(&.{ LDA_IMM, 0x42, TAX, TAY, BRK });
+    try expect(cpu.x == 0x42);
+    try expect(cpu.y == 0x42);
 
-    // INX
-    cpu = CPU{};
-    cpu.loadAndRun(&.{ LDX_IMM, 0x68, INX, BRK });
-    try expect(cpu.x == 0x69);
+    cpu.loadAndRun(&.{ LDX_IMM, 0x42, TXA, TXS, BRK });
+    try expect(cpu.a == 0x42);
+    try expect(cpu.sp == 0x42);
 
-    // INX overflow
-    cpu = CPU{};
-    cpu.loadAndRun(&.{ LDX_IMM, 0xff, INX, INX, BRK });
-    try expect(cpu.x == 1);
+    cpu.loadAndRun(&.{ LDY_IMM, 0x42, TYA, BRK });
+    try expect(cpu.a == 0x42);
 
-    // INY
-    cpu = CPU{};
-    cpu.loadAndRun(&.{ LDY_IMM, 0x68, INY, BRK });
-    try expect(cpu.y == 0x69);
+    cpu.loadAndRun(&.{ SEC, TSX, BRK });
+    try expect(cpu.status == 1);
 }
 
 test "Status flags" {
