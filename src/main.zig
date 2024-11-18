@@ -1,57 +1,141 @@
 const std = @import("std");
 const print = std.debug.print;
+const CPU = @import("./cpu.zig").CPU;
 
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
 });
 
+const game_code = [_]u8{ 0x20, 0x06, 0x06, 0x20, 0x38, 0x06, 0x20, 0x0d, 0x06, 0x20, 0x2a, 0x06, 0x60, 0xa9, 0x02, 0x85, 0x02, 0xa9, 0x04, 0x85, 0x03, 0xa9, 0x11, 0x85, 0x10, 0xa9, 0x10, 0x85, 0x12, 0xa9, 0x0f, 0x85, 0x14, 0xa9, 0x04, 0x85, 0x11, 0x85, 0x13, 0x85, 0x15, 0x60, 0xa5, 0xfe, 0x85, 0x00, 0xa5, 0xfe, 0x29, 0x03, 0x18, 0x69, 0x02, 0x85, 0x01, 0x60, 0x20, 0x4d, 0x06, 0x20, 0x8d, 0x06, 0x20, 0xc3, 0x06, 0x20, 0x19, 0x07, 0x20, 0x20, 0x07, 0x20, 0x2d, 0x07, 0x4c, 0x38, 0x06, 0xa5, 0xff, 0xc9, 0x77, 0xf0, 0x0d, 0xc9, 0x64, 0xf0, 0x14, 0xc9, 0x73, 0xf0, 0x1b, 0xc9, 0x61, 0xf0, 0x22, 0x60, 0xa9, 0x04, 0x24, 0x02, 0xd0, 0x26, 0xa9, 0x01, 0x85, 0x02, 0x60, 0xa9, 0x08, 0x24, 0x02, 0xd0, 0x1b, 0xa9, 0x02, 0x85, 0x02, 0x60, 0xa9, 0x01, 0x24, 0x02, 0xd0, 0x10, 0xa9, 0x04, 0x85, 0x02, 0x60, 0xa9, 0x02, 0x24, 0x02, 0xd0, 0x05, 0xa9, 0x08, 0x85, 0x02, 0x60, 0x60, 0x20, 0x94, 0x06, 0x20, 0xa8, 0x06, 0x60, 0xa5, 0x00, 0xc5, 0x10, 0xd0, 0x0d, 0xa5, 0x01, 0xc5, 0x11, 0xd0, 0x07, 0xe6, 0x03, 0xe6, 0x03, 0x20, 0x2a, 0x06, 0x60, 0xa2, 0x02, 0xb5, 0x10, 0xc5, 0x10, 0xd0, 0x06, 0xb5, 0x11, 0xc5, 0x11, 0xf0, 0x09, 0xe8, 0xe8, 0xe4, 0x03, 0xf0, 0x06, 0x4c, 0xaa, 0x06, 0x4c, 0x35, 0x07, 0x60, 0xa6, 0x03, 0xca, 0x8a, 0xb5, 0x10, 0x95, 0x12, 0xca, 0x10, 0xf9, 0xa5, 0x02, 0x4a, 0xb0, 0x09, 0x4a, 0xb0, 0x19, 0x4a, 0xb0, 0x1f, 0x4a, 0xb0, 0x2f, 0xa5, 0x10, 0x38, 0xe9, 0x20, 0x85, 0x10, 0x90, 0x01, 0x60, 0xc6, 0x11, 0xa9, 0x01, 0xc5, 0x11, 0xf0, 0x28, 0x60, 0xe6, 0x10, 0xa9, 0x1f, 0x24, 0x10, 0xf0, 0x1f, 0x60, 0xa5, 0x10, 0x18, 0x69, 0x20, 0x85, 0x10, 0xb0, 0x01, 0x60, 0xe6, 0x11, 0xa9, 0x06, 0xc5, 0x11, 0xf0, 0x0c, 0x60, 0xc6, 0x10, 0xa5, 0x10, 0x29, 0x1f, 0xc9, 0x1f, 0xf0, 0x01, 0x60, 0x4c, 0x35, 0x07, 0xa0, 0x00, 0xa5, 0xfe, 0x91, 0x00, 0x60, 0xa6, 0x03, 0xa9, 0x00, 0x81, 0x10, 0xa2, 0x00, 0xa9, 0x01, 0x81, 0x10, 0x60, 0xa2, 0x00, 0xea, 0xea, 0xca, 0xd0, 0xfb, 0x60 };
+
 pub fn main() !void {
     if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
-        print("SDL2 initialization failed: {s}\n", .{c.SDL_GetError()});
         return error.SDLInitializationFailed;
     }
     defer c.SDL_Quit();
 
     const window = c.SDL_CreateWindow(
-        "My SDL Window",
+        "Snake Game",
         c.SDL_WINDOWPOS_CENTERED,
         c.SDL_WINDOWPOS_CENTERED,
-        800,
-        600,
+        @as(c_int, 32 * 10),
+        @as(c_int, 32 * 10),
         c.SDL_WINDOW_SHOWN,
     ) orelse {
-        print("Failed to create window: {s}\n", .{c.SDL_GetError()});
+        c.SDL_Quit();
         return error.SDLWindowCreationFailed;
     };
     defer c.SDL_DestroyWindow(window);
 
-    const renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED) orelse {
-        print("Failed to create renderer: {s}\n", .{c.SDL_GetError()});
+    const renderer = c.SDL_CreateRenderer(
+        window,
+        -1,
+        c.SDL_RENDERER_ACCELERATED | c.SDL_RENDERER_PRESENTVSYNC,
+    ) orelse {
         return error.SDLRendererCreationFailed;
     };
     defer c.SDL_DestroyRenderer(renderer);
 
-    // Loop
-    mainLoop: while (true) {
-        var event: c.SDL_Event = undefined;
-        while (c.SDL_PollEvent(&event) != 0) {
-            switch (event.type) {
-                c.SDL_QUIT => break :mainLoop,
-                c.SDL_KEYDOWN => {
-                    if (event.key.keysym.scancode == c.SDL_SCANCODE_Q) {
-                        break :mainLoop;
-                    }
-                },
+    // set scale
+    if (c.SDL_RenderSetScale(renderer, 10.0, 10.0) < 0) {
+        return error.SDLScaleSetFailed;
+    }
+
+    const texture = c.SDL_CreateTexture(
+        renderer,
+        c.SDL_PIXELFORMAT_RGB24,
+        c.SDL_TEXTUREACCESS_TARGET, // texture that can be used as a render target
+        32,
+        32,
+    ) orelse {
+        return error.SDLTextureCreationFailed;
+    };
+    defer c.SDL_DestroyTexture(texture);
+
+    var cpu = CPU{ .prog_rom_start_addr = 0x0600 };
+    cpu.load(&game_code);
+    cpu.reset();
+
+    var screen_state: [32 * 3 * 32]u8 = undefined;
+    var rng = std.rand.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
+    cpu.run_with_callback(&struct {
+        screen_state: *[32 * 3 * 32]u8,
+        rng: *std.rand.DefaultPrng,
+        texture: *c.SDL_Texture,
+        renderer: *c.SDL_Renderer,
+
+        pub fn callback(ctx: @This(), cpu_: *CPU) void {
+            var event: c.SDL_Event = undefined;
+            while (c.SDL_PollEvent(&event) != 0) {
+                handleUserInput(cpu_, event);
+            }
+
+            cpu_.memWrite(0xfe, @intCast(ctx.rng.random().intRangeAtMost(u8, 1, 15)));
+            if (readScreenState(cpu_, ctx.screen_state)) {
+                _ = c.SDL_UpdateTexture(ctx.texture, null, ctx.screen_state.ptr, 32 * 3);
+                _ = c.SDL_RenderCopy(ctx.renderer, ctx.texture, null, null);
+                c.SDL_RenderPresent(ctx.renderer);
+            }
+
+            std.time.sleep(70 * std.time.ns_per_us);
+        }
+    }{
+        .screen_state = &screen_state,
+        .rng = &rng,
+        .texture = texture,
+        .renderer = renderer,
+    });
+}
+
+fn handleUserInput(cpu: *CPU, event: c.SDL_Event) void {
+    switch (event.type) {
+        c.SDL_QUIT => std.process.exit(0),
+        c.SDL_KEYDOWN => {
+            switch (event.key.keysym.scancode) {
+                c.SDL_SCANCODE_ESCAPE => std.process.exit(0),
+                c.SDL_SCANCODE_Q => std.process.exit(0),
+                c.SDL_SCANCODE_W => cpu.memWrite(0xff, 0x77),
+                c.SDL_SCANCODE_S => cpu.memWrite(0xff, 0x73),
+                c.SDL_SCANCODE_A => cpu.memWrite(0xff, 0x61),
+                c.SDL_SCANCODE_D => cpu.memWrite(0xff, 0x64),
                 else => {},
             }
-        }
-
-        _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        _ = c.SDL_RenderClear(renderer);
-
-        c.SDL_RenderPresent(renderer);
-
-        // Small delay to prevent maxing out CPU
-        c.SDL_Delay(16); // roughly 60 FPS
+        },
+        else => {},
     }
+}
+
+fn color(byte: u8) c.SDL_Color {
+    return switch (byte) {
+        0 => c.SDL_Color{ .r = 0, .g = 0, .b = 0, .a = 255 }, // BLACK
+        1 => c.SDL_Color{ .r = 255, .g = 255, .b = 255, .a = 255 }, // WHITE
+        2, 9 => c.SDL_Color{ .r = 128, .g = 128, .b = 128, .a = 255 }, // GREY
+        3, 10 => c.SDL_Color{ .r = 255, .g = 0, .b = 0, .a = 255 }, // RED
+        4, 11 => c.SDL_Color{ .r = 0, .g = 255, .b = 0, .a = 255 }, // GREEN
+        5, 12 => c.SDL_Color{ .r = 0, .g = 0, .b = 255, .a = 255 }, // BLUE
+        6, 13 => c.SDL_Color{ .r = 255, .g = 0, .b = 255, .a = 255 }, // MAGENTA
+        7, 14 => c.SDL_Color{ .r = 255, .g = 255, .b = 0, .a = 255 }, // YELLOW
+        else => c.SDL_Color{ .r = 0, .g = 255, .b = 255, .a = 255 }, // CYAN
+    };
+}
+
+fn readScreenState(cpu: *CPU, frame: *[32 * 3 * 32]u8) bool {
+    var frame_idx: usize = 0;
+    var update = false;
+
+    var i: u16 = 0x0200;
+    while (i < 0x600) : (i += 1) {
+        const color_idx = cpu.memRead(i);
+        const rgb = color(color_idx);
+
+        if (frame[frame_idx] != rgb.r or frame[frame_idx + 1] != rgb.g or frame[frame_idx + 2] != rgb.b) {
+            frame[frame_idx] = rgb.r;
+            frame[frame_idx + 1] = rgb.g;
+            frame[frame_idx + 2] = rgb.b;
+
+            update = true;
+        }
+        frame_idx += 3;
+    }
+    return update;
 }
