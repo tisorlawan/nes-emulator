@@ -124,7 +124,7 @@ fn readScreenState(cpu: *CPU, frame: *[32 * 3 * 32]u8) bool {
     var update = false;
 
     var i: u16 = 0x0200;
-    while (i < 0x600) : (i += 1) {
+    while (i < 0x0600) : (i += 1) {
         const color_idx = cpu.memRead(i);
         const rgb = color(color_idx);
 

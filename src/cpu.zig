@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const Bus = @import("./bus.zig").Bus;
 
 pub const AddrMode = enum {
     Implicit,
@@ -471,6 +472,7 @@ const DEFAULT_STATUS = 0b100100;
 
 pub const CPU = struct {
     memory: [0xFFFF]u8 = .{0} ** 0xFFFF,
+    bus: Bus = Bus{},
     status: u8 = DEFAULT_STATUS,
     pc: u16 = 0,
 
@@ -488,23 +490,27 @@ pub const CPU = struct {
 
     pub fn memRead(self: *CPU, addr: u16) u8 {
         return self.memory[addr];
+        // return self.bus.memRead(addr);
     }
 
     fn memReadU16(self: *CPU, addr: u16) u16 {
         const lo = self.memRead(addr);
-        const hi = self.memRead(addr + 1);
+        const hi = self.memRead(addr +% 1);
         return (@as(u16, hi) << 8) | lo;
+        // return self.bus.memRead(addr);
     }
 
-    pub fn memWrite(self: *CPU, addr: u16, value: u8) void {
-        self.memory[addr] = value;
+    pub fn memWrite(self: *CPU, addr: u16, data: u8) void {
+        self.memory[addr] = data;
+        // self.bus.memWrite(addr, data);
     }
 
-    fn memWriteU16(self: *CPU, addr: u16, value: u16) void {
-        const hi: u8 = @truncate(value >> 8);
-        const lo: u8 = @truncate(value & 0x00FF);
+    fn memWriteU16(self: *CPU, addr: u16, data: u16) void {
+        const hi: u8 = @truncate(data >> 8);
+        const lo: u8 = @truncate(data & 0x00FF);
         self.memWrite(addr, lo);
         self.memWrite(addr +% 1, hi);
+        // self.bus.memWriteU16(addr, data);
     }
 
     pub fn reset(self: *CPU) void {
@@ -515,8 +521,9 @@ pub const CPU = struct {
     }
 
     pub fn load(self: *CPU, program: []const u8) void {
-        std.mem.copyForwards(u8, self.memory[self.prog_rom_start_addr..][0..program.len], program);
-        self.pc = self.prog_rom_start_addr;
+        for (program, 0..) |data, i| {
+            self.memWrite(self.prog_rom_start_addr + @as(u16, @intCast(i)), data);
+        }
         self.memWriteU16(RESET_VECTOR, self.prog_rom_start_addr);
     }
 
@@ -551,7 +558,7 @@ pub const CPU = struct {
     }
 
     pub fn push(self: *CPU, data: u8) void {
-        self.memory[STACK_START + @as(u16, self.sp)] = data;
+        self.memWrite(STACK_START + @as(u16, self.sp), data);
         self.sp -%= 1;
     }
 
@@ -564,7 +571,7 @@ pub const CPU = struct {
 
     pub fn pull(self: *CPU) u8 {
         self.sp +%= 1;
-        return self.memory[STACK_START + @as(u16, self.sp)];
+        return self.memRead(STACK_START + @as(u16, self.sp));
     }
 
     pub fn pull_u16(self: *CPU) u16 {
